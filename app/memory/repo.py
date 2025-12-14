@@ -5,7 +5,6 @@ from datetime import datetime
 from app.memory.models import Meeting, MemoryEntry, Commitment, Interaction
 from app.memory.schemas import MeetingCreate, MeetingUpdate, MemoryEntryCreate, CommitmentCreate
 
-
 class MemoryRepo:
     """Repository for memory operations."""
     
@@ -31,6 +30,35 @@ class MemoryRepo:
             Meeting.client_name.ilike(f"%{client_name}%")
         ).order_by(Meeting.meeting_date.desc()).limit(limit).first()
     
+    def get_most_recent_meeting(self):
+
+        return (
+            self.db.query(Meeting)
+            .order_by(Meeting.meeting_date.desc())
+            .first()
+        )
+
+    def get_next_upcoming_meeting(self, client_name: Optional[str] = None):
+        """
+        Returns the next upcoming meeting.
+        If client_name is provided, scopes to that client.
+        """
+
+        query = (
+            self.db.query(Meeting)
+            .filter(Meeting.meeting_date >= datetime.utcnow())
+        )
+
+        if client_name:
+            query = query.filter(Meeting.client_name.ilike(f"%{client_name}%"))
+
+        return (
+            query
+            .order_by(Meeting.meeting_date.asc())
+            .first()
+        )
+
+
     def update_meeting(self, meeting_id: int, update_data: MeetingUpdate) -> Meeting:
         """Update meeting with summary, decisions, action items."""
         meeting = self.db.query(Meeting).filter(Meeting.id == meeting_id).first()

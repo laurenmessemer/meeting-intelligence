@@ -10,10 +10,15 @@ from app.memory.repo import MemoryRepo
 from app.integrations.calendar import (
     get_most_recent_meeting_by_client,
     get_meeting_by_client_and_date,
+    get_next_upcoming_meeting_from_calendar,
 )
 from app.integrations.zoom import extract_zoom_meeting_id, fetch_zoom_transcript
 from app.tools.summarize import summarize_meeting
 from app.memory.schemas import MeetingCreate, MeetingUpdate
+from app.llm.client import chat
+from app.tools.followup import generate_followup_email
+from app.tools.meeting_brief import generate_meeting_brief
+
 
 
 class Orchestrator:
@@ -61,9 +66,6 @@ class Orchestrator:
     # ----------------------------
 
     def process_message(self, user_message: str) -> Dict[str, Any]:
-        """
-        Main entry point - processes user message through full workflow.
-        """
         intent_result = recognize_intent(user_message)
         intent = intent_result.get("intent")
         entities = intent_result.get("entities", {})
@@ -71,13 +73,27 @@ class Orchestrator:
         workflow = None
 
         if intent == "summarize_meeting":
-            workflow = MEETING_SUMMARY_WORKFLOW
+            workflow = MEETING_SUMMARY_WORKFLOW["name"]
             response = self._execute_meeting_summary_workflow(entities)
+
+        elif intent == "generate_followup":
+            workflow = "generate_followup"
+            response = self._execute_followup_workflow()
+
+        elif intent == "meeting_brief":
+            workflow = "meeting_brief"
+            response = self._execute_meeting_brief_workflow(entities)
+
         else:
             response = {
                 "message": (
-                    "I can help you summarize meetings. "
-                    "Try asking: 'Summarize my last meeting with [client name]'"
+                    "I can help you with:\n"
+                    "- Summarizing past meetings\n"
+                    "- Generating follow-up emails\n"
+                    "- Briefing you on upcoming meetings\n\n"
+                    "Try:\n"
+                    "- 'Brief me on my next meeting'\n"
+                    "- 'Brief me on my meeting with MTCA'"
                 ),
                 "metadata": {"intent": intent},
             }
@@ -85,12 +101,14 @@ class Orchestrator:
         self.memory_repo.create_interaction(
             user_message=user_message,
             intent=intent,
-            workflow=workflow.get("name") if workflow else None,
+            workflow=workflow,
             response=response.get("message", ""),
             metadata=response.get("metadata", {}),
         )
 
         return response
+
+
 
     # ----------------------------
     # Workflow execution
@@ -201,26 +219,34 @@ class Orchestrator:
             calendar_event["id"]
         )
 
+        # --- Resolve meeting_date early (needed for Zoom UUID matching) ---
+        start_str = calendar_event.get("start")
+
+        try:
+            if start_str and "T" in start_str:
+                meeting_date = datetime.fromisoformat(
+                    start_str.replace("Z", "+00:00")
+                )
+            elif start_str:
+                meeting_date = datetime.fromisoformat(start_str)
+            else:
+                meeting_date = datetime.utcnow()
+        except Exception:
+            meeting_date = datetime.utcnow()
+
+
         # Step 3: Extract transcript
         zoom_meeting_id = extract_zoom_meeting_id(calendar_event)
-        transcript = fetch_zoom_transcript(zoom_meeting_id) if zoom_meeting_id else None
-
+        transcript = (
+            fetch_zoom_transcript(
+                zoom_meeting_id,
+                expected_date=meeting_date,
+            )
+            if zoom_meeting_id
+            else None
+        )
         # Step 4: Create or reuse meeting record
         if not existing_meeting:
-            start_str = calendar_event.get("start")
-
-            try:
-                if start_str and "T" in start_str:
-                    meeting_date = datetime.fromisoformat(
-                        start_str.replace("Z", "+00:00")
-                    )
-                elif start_str:
-                    meeting_date = datetime.fromisoformat(start_str)
-                else:
-                    meeting_date = datetime.utcnow()
-            except Exception:
-                meeting_date = datetime.utcnow()
-
             meeting = self.memory_repo.create_meeting(
                 MeetingCreate(
                     client_name=client_name,
@@ -232,6 +258,7 @@ class Orchestrator:
             )
         else:
             meeting = existing_meeting
+
 
         # Step 5: Retrieve memory context
         memory_entries = self.memory_repo.get_memory_for_client(client_name)
@@ -291,16 +318,16 @@ class Orchestrator:
 
         response_message = f"""**Meeting Summary for {client_name}**
 
-{summary_result['summary']}
+    {summary_result['summary']}
 
-**Decisions:**
-{chr(10).join(f"- {d}" for d in summary_result.get('decisions', [])) or "None"}
+    **Decisions:**
+    {chr(10).join(f"- {d}" for d in summary_result.get('decisions', [])) or "None"}
 
-**Action Items:**
-{chr(10).join(f"- {item.get('text', '')}" for item in action_items) or "None"}
+    **Action Items:**
+    {chr(10).join(f"- {item.get('text', '')}" for item in action_items) or "None"}
 
-{f"{commitments_count} task(s) created in HubSpot." if commitments_count else ""}
-"""
+    {f"{commitments_count} task(s) created in HubSpot." if commitments_count else ""}
+    """
 
         return {
             "message": response_message,
@@ -309,5 +336,77 @@ class Orchestrator:
                 "client_name": client_name,
                 "commitments_created": commitments_count,
                 "has_transcript": bool(transcript or meeting.transcript),
+            },
+        }
+
+    def _execute_followup_workflow(self) -> Dict[str, Any]:
+        meeting = self.memory_repo.get_most_recent_meeting()
+
+        if not meeting or not meeting.summary:
+            return {
+                "message": (
+                    "I don't have a recent summarized meeting to generate a follow-up for yet. "
+                    "Try summarizing a meeting first."
+                ),
+                "metadata": {"error": "no_summarized_meeting"},
+            }
+
+        followup_text = generate_followup_email(
+            summary=meeting.summary,
+            decisions=meeting.decisions or [],
+            action_items=meeting.action_items or [],
+            client_name=meeting.client_name,
+            meeting_date=meeting.meeting_date.date().isoformat(),
+            memory_context="",  # optional, safe default
+        )
+
+        return {
+            "message": followup_text,
+            "metadata": {
+                "meeting_id": meeting.id,
+                "client_name": meeting.client_name,
+            },
+        }
+
+    def _execute_meeting_brief_workflow(self, entities: Dict[str, Any]) -> Dict[str, Any]:
+        client_name = entities.get("client_name")
+
+        # 1️⃣ Resolve upcoming meeting from calendar
+        calendar_event = get_next_upcoming_meeting_from_calendar(client_name)
+
+        if not calendar_event:
+            return {
+                "message": (
+                    f"I couldn't find an upcoming meeting"
+                    f"{f' with {client_name}' if client_name else ''}."
+                ),
+                "metadata": {"error": "no_upcoming_meeting"},
+            }
+
+        # 2️⃣ Pull memory context (safe default)
+        memory_entries = (
+            self.memory_repo.get_memory_for_client(client_name)
+            if client_name
+            else []
+        )
+
+        memory_context = "\n".join(
+            f"- {entry.value}" for entry in memory_entries[:5]
+        )
+
+        # 3️⃣ Generate brief
+        brief_text = generate_meeting_brief(
+            client_name=client_name,
+            meeting_title=calendar_event.get("summary", "Upcoming Meeting"),
+            meeting_date=calendar_event.get("start"),
+            attendees=calendar_event.get("attendees", []),
+            memory_context=memory_context,
+        )
+
+        return {
+            "message": brief_text,
+            "metadata": {
+                "calendar_event_id": calendar_event.get("id"),
+                "client_name": client_name,
             },
         }

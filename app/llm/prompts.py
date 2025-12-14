@@ -5,7 +5,7 @@ Analyze the user's message and determine their intent. Extract relevant entities
 
 Respond in JSON format:
 {
-  "intent": "summarize_meeting" | "other",
+  "intent": "summarize_meeting" | "generate_followup" | "meeting_brief" |"other",
   "confidence": 0.0-1.0,
   "entities": {
     "client_name": "string or null",
@@ -16,6 +16,9 @@ Respond in JSON format:
 
 Known intents:
 - summarize_meeting: User wants to summarize a meeting with a client
+- generate_followup: User wants a follow-up email for the most recent meeting
+- meeting_brief: User wants preparation notes for an upcoming meeting
+
 
 Return ONLY raw JSON. Do not include markdown, code fences, or explanation.
 """
@@ -86,3 +89,30 @@ Client: {client_name}
 Meeting Date: {meeting_date}
 
 Generate a professional follow-up email."""
+
+MEETING_BRIEF_SYSTEM = """You are an executive meeting preparation assistant.
+
+Your goal is to prepare the user to walk into a meeting confident and informed.
+
+Focus on:
+- Why this meeting matters
+- Key context from past conversations
+- What decisions are likely to be made
+- What the user should be prepared to discuss or decide
+
+Be concise, actionable, and forward-looking."""
+
+MEETING_BRIEF_USER = """Meeting: {meeting_title}
+Date: {meeting_date}
+Client: {client_name}
+Attendees: {attendees}
+
+Relevant context from previous meetings:
+{memory_context}
+
+Generate a concise briefing with:
+1. Purpose of the meeting
+2. Relevant background
+3. Likely discussion points
+4. Suggested preparation notes
+"""

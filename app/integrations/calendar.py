@@ -160,7 +160,6 @@ def _matches_client(meeting: Dict[str, Any], client_lower: str) -> bool:
 
     return client_lower in haystack
 
-
 def search_meetings_by_client(client_name: str, days_back: int = 90) -> List[Dict[str, Any]]:
     """
     Search meetings by client name in summary or description.
@@ -176,8 +175,6 @@ def search_meetings_by_client(client_name: str, days_back: int = 90) -> List[Dic
         for meeting in all_meetings
         if _matches_client(meeting, client_lower)
     ]
-
-
 
 def get_most_recent_meeting_by_client(client_name: str) -> Optional[Dict[str, Any]]:
     """Get the most recent meeting for a client."""
@@ -371,4 +368,86 @@ def get_meeting_by_client_and_date(
                     .get("uri", "")
             }
 
+    return None
+
+def get_next_upcoming_meeting_from_calendar(
+    client_name: Optional[str] = None,
+    lookahead_days: int = 30,
+) -> Optional[Dict[str, Any]]:
+    """
+    Returns the next upcoming calendar meeting.
+    If client_name is provided, filters to that client.
+    """
+
+    print("=" * 80)
+    print("DIAGNOSTIC: get_next_upcoming_meeting_from_calendar()")
+    print("=" * 80)
+    print(f"DIAGNOSTIC: client_name: {client_name}")
+    print(f"DIAGNOSTIC: lookahead_days: {lookahead_days}")
+
+    service = get_calendar_service()
+
+    now = datetime.utcnow().replace(tzinfo=timezone.utc)
+    time_min = now.isoformat()
+    time_max = (now + timedelta(days=lookahead_days)).isoformat()
+
+    print(f"DIAGNOSTIC: timeMin: {time_min}")
+    print(f"DIAGNOSTIC: timeMax: {time_max}")
+
+    events_result = service.events().list(
+        calendarId=Config.GOOGLE_CALENDAR_ID,
+        timeMin=time_min,
+        timeMax=time_max,
+        singleEvents=True,
+        orderBy="startTime",
+        maxResults=20,
+    ).execute()
+
+    events = events_result.get("items", [])
+
+    print(f"DIAGNOSTIC: Events returned: {len(events)}")
+
+    if not events:
+        return None
+
+    client_lower = client_name.lower() if client_name else None
+
+    for idx, event in enumerate(events, 1):
+        start_str = event.get("start", {}).get("dateTime") or event.get("start", {}).get("date")
+
+        try:
+            start_dt = _to_utc_datetime(start_str)
+        except Exception as e:
+            print(f"DIAGNOSTIC: Skipping event #{idx}, date parse failed: {e}")
+            continue
+
+        print(f"\nEvent #{idx}:")
+        print(f"  summary: {event.get('summary', '')}")
+        print(f"  start: {start_dt}")
+
+        meeting = {
+            "id": event.get("id"),
+            "summary": event.get("summary", ""),
+            "start": start_str,
+            "end": event.get("end", {}).get("dateTime") or event.get("end", {}).get("date"),
+            "description": event.get("description", ""),
+            "attendees": [a.get("email") for a in event.get("attendees", []) if a.get("email")],
+            "organizer": (event.get("organizer") or {}).get("email", ""),
+            "creator": (event.get("creator") or {}).get("email", ""),
+            "location": event.get("location", ""),
+            "hangoutLink": event.get("hangoutLink")
+                or event.get("conferenceData", {})
+                .get("entryPoints", [{}])[0]
+                .get("uri", ""),
+        }
+
+        if client_lower:
+            if not _matches_client(meeting, client_lower):
+                print("  ✗ Client does not match, skipping")
+                continue
+
+        print("  ✓ Selected as next upcoming meeting")
+        return meeting
+
+    print("DIAGNOSTIC: No upcoming meeting matched client filter")
     return None
