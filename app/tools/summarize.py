@@ -5,6 +5,25 @@ from app.llm.client import chat
 from app.llm.prompts import MEETING_SUMMARY_SYSTEM, MEETING_SUMMARY_USER
 
 
+def _extract_json(text: str) -> Dict[str, Any]:
+    """
+    Safely extract JSON from LLM output.
+    Handles raw JSON and JSON wrapped in markdown fences.
+    """
+    text = text.strip()
+
+    # Remove markdown code fences if present
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # Drop first and last fence lines
+        text = "\n".join(
+            line for line in lines
+            if not line.strip().startswith("```")
+        ).strip()
+
+    return json.loads(text)
+
+
 def summarize_meeting(transcript: Optional[str], meeting_metadata: Dict[str, Any], 
                      memory_context: str = "") -> Dict[str, Any]:
     """
@@ -48,16 +67,17 @@ def summarize_meeting(transcript: Optional[str], meeting_metadata: Dict[str, Any
     
     # Parse JSON response
     try:
-        result = json.loads(response_text)
+        result = _extract_json(response_text)
         return {
             "summary": result.get("summary", ""),
             "decisions": result.get("decisions", []),
             "action_items": result.get("action_items", [])
         }
-    except json.JSONDecodeError:
-        # Fallback if JSON parsing fails
+    except Exception as e:
+        print(f"DIAGNOSTIC: Failed to parse summary JSON: {e}")
         return {
-            "summary": response_text,
+            "summary": response_text.strip(),
             "decisions": [],
             "action_items": []
         }
+

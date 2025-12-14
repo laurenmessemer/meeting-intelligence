@@ -57,8 +57,23 @@ class GeminiClient:
         )
 
         generation_config = {"temperature": temperature}
+
         if response_format:
-            generation_config.update(response_format)
+            # Only allow keys supported by older Gemini SDKs
+            allowed_keys = {
+                "max_output_tokens",
+                "top_p",
+                "top_k",
+                "candidate_count",
+                "stop_sequences",
+            }
+
+            safe_format = {
+                k: v for k, v in response_format.items() if k in allowed_keys
+            }
+
+            generation_config.update(safe_format)
+
 
         response = self.model.generate_content(
             full_prompt,

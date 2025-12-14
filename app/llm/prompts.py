@@ -9,12 +9,15 @@ Respond in JSON format:
   "confidence": 0.0-1.0,
   "entities": {
     "client_name": "string or null",
-    "date": "YYYY-MM-DD or null"
+    "date": "ISO 8601 date in YYYY-MM-DD format, or null. 
+    Convert natural language dates (e.g. 'December 12th, 2025') into YYYY-MM-DD."
   }
 }
 
 Known intents:
 - summarize_meeting: User wants to summarize a meeting with a client
+
+Return ONLY raw JSON. Do not include markdown, code fences, or explanation.
 """
 
 INTENT_RECOGNITION_USER = """User message: {user_message}
