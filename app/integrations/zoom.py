@@ -4,6 +4,10 @@ from typing import Optional
 from app.integrations.calendar import get_calendar_service
 from app.config import Config
 
+# Note: Zoom OAuth configuration available via Config.ZOOM_ACCOUNT_ID, 
+# Config.ZOOM_CLIENT_ID, Config.ZOOM_CLIENT_SECRET
+# Legacy fallback: Config.ZOOM_API_KEY, Config.ZOOM_API_SECRET
+
 
 def extract_zoom_meeting_id(calendar_event: dict) -> Optional[str]:
     """

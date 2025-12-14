@@ -14,21 +14,27 @@ SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 def get_calendar_service():
     """Get authenticated Google Calendar service."""
     creds = None
+    token_file = Config.GOOGLE_TOKEN_FILE
+    scopes = Config.GOOGLE_SCOPES if Config.GOOGLE_SCOPES else SCOPES
     
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    # Load existing token if available
+    if os.path.exists(token_file):
+        creds = Credentials.from_authorized_user_file(token_file, scopes)
     
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not Config.GOOGLE_CREDENTIALS_PATH:
-                raise ValueError("GOOGLE_CREDENTIALS_PATH not configured")
+            # Use new GOOGLE_CLIENT_SECRET_FILE or fallback to legacy GOOGLE_CREDENTIALS_PATH
+            credentials_path = Config.GOOGLE_CLIENT_SECRET_FILE or Config.GOOGLE_CREDENTIALS_PATH
+            if not credentials_path:
+                raise ValueError("GOOGLE_CLIENT_SECRET_FILE or GOOGLE_CREDENTIALS_PATH not configured")
             flow = InstalledAppFlow.from_client_secrets_file(
-                Config.GOOGLE_CREDENTIALS_PATH, SCOPES)
+                credentials_path, scopes)
             creds = flow.run_local_server(port=0)
         
-        with open('token.json', 'w') as token:
+        # Save token to configured file
+        with open(token_file, 'w') as token:
             token.write(creds.to_json())
     
     return build('calendar', 'v3', credentials=creds)
