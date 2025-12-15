@@ -11,6 +11,19 @@ class MemoryRepo:
     def __init__(self, db: Session):
         self.session = db
 
+    # Client resolution operations
+    def get_distinct_client_names(self, limit: int = 200):
+        rows = (
+            self.session.query(Meeting.client_name)
+            .filter(Meeting.client_name.isnot(None))
+            .filter(Meeting.client_name != "")
+            .distinct()
+            .limit(limit)
+            .all()
+        )
+        return [r[0] for r in rows]
+
+
     # Meeting operations
     def create_meeting(self, meeting_data: MeetingCreate) -> Meeting:
         """Create a new meeting record."""

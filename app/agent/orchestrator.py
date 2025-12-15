@@ -3,6 +3,7 @@
 from typing import Dict, Any
 from datetime import datetime, date
 from dateutil import parser
+import uuid
 
 from app.agent.intents import recognize_intent
 from app.agent.workflows import MEETING_SUMMARY_WORKFLOW
@@ -23,7 +24,8 @@ from app.integrations.zoom import extract_zoom_meeting_id, fetch_zoom_transcript
 from app.tools.summarize import summarize_meeting
 from app.tools.followup import generate_followup_email
 from app.tools.meeting_brief import generate_meeting_brief
-from app.agent.utils import resolve_client_name
+from app.agent.client_resolution import resolve_client_name
+
 
 from app.integrations.hubspot import (
     HubSpotIntegrationError,
@@ -38,6 +40,10 @@ logger = logging.getLogger(__name__)
 ENABLE_HUBSPOT = True
 
 class Orchestrator:
+
+    def log_trace(self, message: str):
+        logger.info(f"[TRACE {self.trace_id}] {message}")
+
     """Coordinates agent operations - no SQL, HTTP, or LLM prompts here."""
 
     def __init__(self, memory_repo: MemoryRepo):
@@ -123,6 +129,8 @@ class Orchestrator:
         self, entities: Dict[str, Any]
     ) -> Dict[str, Any]:
 
+        trace_id = str(uuid.uuid4())[:8]
+
         client_name = entities.get("client_name")
         date_str = entities.get("date")
         calendar_event = None
@@ -185,6 +193,7 @@ class Orchestrator:
                 "metadata": {"error": "meeting_not_found"},
             }
 
+
         # -------------------------------------------------
         # Load existing meeting early (if it exists)
         # -------------------------------------------------
@@ -193,28 +202,75 @@ class Orchestrator:
             calendar_event["id"]
         )
 
+        if existing_meeting:
+            logger.info(
+                f"[TRACE {trace_id}] Existing meeting found | "
+                f"meeting_id={existing_meeting.id} | "
+                f"client_name='{existing_meeting.client_name}'"
+            )
+        else:
+            logger.info(f"[TRACE {trace_id}] No existing meeting found")
+
+
 
         # -------------------------------------------------
         # Client Resolution (authoritative)
+        # Priority: DB meeting -> explicit user -> deterministic -> LLM -> ask user
         # -------------------------------------------------
 
-        client_name = resolve_client_name(
-            explicit_client=entities.get("client_name"),
-            meeting=existing_meeting,
-            calendar_event=calendar_event,
-        )
+        # 1) DB meeting wins (canonical if it exists)
+        if existing_meeting and existing_meeting.client_name:
+            client_name = existing_meeting.client_name
 
+        # 2) Explicit user client next (if provided)
+        if not client_name and entities.get("client_name"):
+            client_name = entities.get("client_name")
+
+        # 3) Deterministic resolver (your existing function)
+        if not client_name:
+            known_clients = self.memory_repo.get_distinct_client_names()
+
+            client_name = resolve_client_name(
+                explicit_client=entities.get("client_name"),
+                meeting=existing_meeting,
+                calendar_event=calendar_event,
+                known_clients=known_clients,
+            )
+
+        # 4) LLM resolver only if still unresolved
+        llm_meta = None
+        if not client_name:
+            known_clients = self.memory_repo.get_distinct_client_names()
+
+            # IMPORTANT: you must wire in your actual LLM call here
+            # Replace `your_llm_chat_fn` with your existing LLM chat callable.
+            llm_result = llm_resolve_client_name(
+                calendar_summary=calendar_event.get("summary", ""),
+                attendees=calendar_event.get("attendees", []),
+                known_clients=known_clients,
+                llm_chat_fn=your_llm_chat_fn,
+            )
+
+            llm_meta = llm_result
+
+            # Gate on confidence
+            if llm_result.get("proposed_client") and llm_result.get("confidence", 0.0) >= 0.85:
+                client_name = llm_result["proposed_client"]
+
+        # 5) If still not resolved, ask user
         if not client_name:
             return {
                 "message": (
                     "I couldn’t confidently determine the client for this meeting. "
-                    "Please try again and specify the client name."
+                    "Which client/company was this with?"
                 ),
                 "metadata": {
                     "error": "client_not_resolved",
                     "calendar_summary": calendar_event.get("summary"),
+                    "llm_client_resolution": llm_meta,
                 },
             }
+
 
         # -------------------------------------------------
         # Memory + Transcript Resolution
@@ -239,6 +295,7 @@ class Orchestrator:
         )
 
         if not existing_meeting:
+
             meeting = self.memory_repo.create_meeting(
                 MeetingCreate(
                     client_name=client_name,
@@ -357,6 +414,7 @@ class Orchestrator:
                 "client_name": client_name,
                 "proposed_hubspot_tasks": proposed_tasks,
                 "requires_hubspot_approval": bool(proposed_tasks),
+                "calendar_event_summary": calendar_event.get("summary"),
             },
         }
 
