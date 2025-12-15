@@ -9,31 +9,31 @@ class MemoryRepo:
     """Repository for memory operations."""
     
     def __init__(self, db: Session):
-        self.db = db
-    
+        self.session = db
+
     # Meeting operations
     def create_meeting(self, meeting_data: MeetingCreate) -> Meeting:
         """Create a new meeting record."""
         meeting = Meeting(**meeting_data.dict())
-        self.db.add(meeting)
-        self.db.commit()
-        self.db.refresh(meeting)
+        self.session.add(meeting)
+        self.session.commit()
+        self.session.refresh(meeting)
         return meeting
     
     def get_meeting_by_calendar_id(self, calendar_event_id: str) -> Optional[Meeting]:
         """Get meeting by calendar event ID."""
-        return self.db.query(Meeting).filter(Meeting.calendar_event_id == calendar_event_id).first()
+        return self.session.query(Meeting).filter(Meeting.calendar_event_id == calendar_event_id).first()
     
     def get_recent_meeting_by_client(self, client_name: str, limit: int = 1) -> Optional[Meeting]:
         """Get most recent meeting for a client."""
-        return self.db.query(Meeting).filter(
+        return self.session.query(Meeting).filter(
             Meeting.client_name.ilike(f"%{client_name}%")
         ).order_by(Meeting.meeting_date.desc()).limit(limit).first()
     
     def get_most_recent_meeting(self):
 
         return (
-            self.db.query(Meeting)
+            self.session.query(Meeting)
             .order_by(Meeting.meeting_date.desc())
             .first()
         )
@@ -45,7 +45,7 @@ class MemoryRepo:
         """
 
         query = (
-            self.db.query(Meeting)
+            self.session.query(Meeting)
             .filter(Meeting.meeting_date >= datetime.utcnow())
         )
 
@@ -58,10 +58,9 @@ class MemoryRepo:
             .first()
         )
 
-
     def update_meeting(self, meeting_id: int, update_data: MeetingUpdate) -> Meeting:
         """Update meeting with summary, decisions, action items."""
-        meeting = self.db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        meeting = self.session.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             raise ValueError(f"Meeting {meeting_id} not found")
         
@@ -73,10 +72,37 @@ class MemoryRepo:
             meeting.action_items = update_data.action_items
         
         meeting.updated_at = datetime.utcnow()
-        self.db.commit()
-        self.db.refresh(meeting)
+        self.session.commit()
+        self.session.refresh(meeting)
         return meeting
     
+    def set_active_meeting(self, meeting_id: int) -> None:
+        """
+        Persistently marks a meeting as active.
+        Clears any previously active meeting.
+        """
+        # Clear existing active meeting(s)
+        self.session.query(Meeting).filter(Meeting.is_active == True).update(
+            {"is_active": False}
+        )
+
+        meeting = self.session.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if meeting:
+            meeting.is_active = True
+            self.session.commit()
+
+    def get_active_meeting(self) -> Optional[Meeting]:
+        """
+        Returns the most recently active meeting.
+        """
+        return (
+            self.session.query(Meeting)
+            .filter(Meeting.is_active == True)
+            .order_by(Meeting.meeting_date.desc())
+            .first()
+        )
+
+
     # Memory entry operations
     def create_memory_entry(self, entry_data: MemoryEntryCreate) -> MemoryEntry:
         """Create a memory entry."""
@@ -85,24 +111,24 @@ class MemoryRepo:
         if "metadata" in data:
             data["meta_data"] = data.pop("metadata")
         entry = MemoryEntry(**data)
-        self.db.add(entry)
-        self.db.commit()
-        self.db.refresh(entry)
+        self.session.add(entry)
+        self.session.commit()
+        self.session.refresh(entry)
         return entry
     
     def get_memory_by_key(self, key: str, limit: int = 10) -> List[MemoryEntry]:
         """Get memory entries by key."""
-        return self.db.query(MemoryEntry).filter(MemoryEntry.key == key).order_by(
+        return self.session.query(MemoryEntry).filter(MemoryEntry.key == key).order_by(
             MemoryEntry.created_at.desc()
         ).limit(limit).all()
     
     def get_memory_for_client(self, client_name: str) -> List[MemoryEntry]:
         """Get memory entries related to a client."""
-        meetings = self.db.query(Meeting).filter(
+        meetings = self.session.query(Meeting).filter(
             Meeting.client_name.ilike(f"%{client_name}%")
         ).all()
         meeting_ids = [m.id for m in meetings]
-        return self.db.query(MemoryEntry).filter(
+        return self.session.query(MemoryEntry).filter(
             MemoryEntry.meeting_id.in_(meeting_ids)
         ).all()
     
@@ -110,25 +136,25 @@ class MemoryRepo:
     def create_commitment(self, commitment_data: CommitmentCreate) -> Commitment:
         """Create a commitment record."""
         commitment = Commitment(**commitment_data.dict())
-        self.db.add(commitment)
-        self.db.commit()
-        self.db.refresh(commitment)
+        self.session.add(commitment)
+        self.session.commit()
+        self.session.refresh(commitment)
         return commitment
     
     def get_commitments_by_meeting(self, meeting_id: int) -> List[Commitment]:
         """Get all commitments for a meeting."""
-        return self.db.query(Commitment).filter(Commitment.meeting_id == meeting_id).all()
+        return self.session.query(Commitment).filter(Commitment.meeting_id == meeting_id).all()
     
     def update_commitment_status(self, commitment_id: int, status: str) -> Commitment:
         """Update commitment status."""
-        commitment = self.db.query(Commitment).filter(Commitment.id == commitment_id).first()
+        commitment = self.session.query(Commitment).filter(Commitment.id == commitment_id).first()
         if not commitment:
             raise ValueError(f"Commitment {commitment_id} not found")
         
         commitment.status = status
         commitment.updated_at = datetime.utcnow()
-        self.db.commit()
-        self.db.refresh(commitment)
+        self.session.commit()
+        self.session.refresh(commitment)
         return commitment
     
     # Interaction operations
@@ -142,7 +168,8 @@ class MemoryRepo:
             response=response,
             meta_data=metadata  # Use meta_data to avoid SQLAlchemy reserved name
         )
-        self.db.add(interaction)
-        self.db.commit()
-        self.db.refresh(interaction)
+        self.session.add(interaction)
+        self.session.commit()
+        self.session.refresh(interaction)
         return interaction
+

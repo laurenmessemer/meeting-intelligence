@@ -18,8 +18,12 @@ class Meeting(Base):
     summary = Column(Text, nullable=True)
     decisions = Column(JSON, nullable=True)  # List of decision strings
     action_items = Column(JSON, nullable=True)  # List of action item dicts
+
+    is_active = Column(Boolean, default=False, index=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
     
     # Relationships
     memory_entries = relationship("MemoryEntry", back_populates="meeting")

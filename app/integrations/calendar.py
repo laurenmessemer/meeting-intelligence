@@ -145,6 +145,17 @@ def get_recent_meetings(days_back: int = 30) -> List[Dict[str, Any]]:
         for event in events
     ]
 
+def get_most_recent_meeting(days_back: int = 30) -> Optional[Dict[str, Any]]:
+    meetings = get_recent_meetings(days_back)
+    if not meetings:
+        return None
+
+    meetings.sort(
+        key=lambda x: _to_utc_datetime(x["start"]),
+        reverse=True,
+    )
+    return meetings[0]
+
 def _matches_client(meeting: Dict[str, Any], client_lower: str) -> bool:
     """
     Check client name across all relevant event fields.

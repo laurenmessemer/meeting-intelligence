@@ -3,6 +3,13 @@ import requests
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from app.config import Config
+import logging
+logger = logging.getLogger(__name__)
+
+
+class HubSpotIntegrationError(Exception):
+    """Raised when a HubSpot API request fails in a controlled way."""
+    pass
 
 
 def create_task(action_item_text: str, due_date: Optional[datetime] = None) -> Optional[str]:
@@ -17,8 +24,12 @@ def create_task(action_item_text: str, due_date: Optional[datetime] = None) -> O
         HubSpot task ID or None if creation failed
     """
     if not Config.HUBSPOT_API_KEY:
-        raise ValueError("HUBSPOT_API_KEY not configured")
-    
+        logger.info("HubSpot disabled: HUBSPOT_API_KEY not configured")
+        return None
+
+    # Deterministic fingerprint for idempotency (lightweight)
+    task_fingerprint = action_item_text.strip().lower()[:80]
+
     # Default due date: +3 business days
     if not due_date:
         due_date = datetime.utcnow() + timedelta(days=3)
@@ -28,28 +39,44 @@ def create_task(action_item_text: str, due_date: Optional[datetime] = None) -> O
     
     url = "https://api.hubapi.com/crm/v3/objects/tasks"
     
-    headers = {
-        "Authorization": f"Bearer {Config.HUBSPOT_API_KEY}",
-        "Content-Type": "application/json"
-    }
+    # headers = {
+    #     "Authorization": f"Bearer {Config.HUBSPOT_API_KEY}",
+    #     "Content-Type": "application/json"
+    # }
     
     payload = {
         "properties": {
             "hs_task_subject": action_item_text[:100],  # HubSpot limit
-            "hs_task_body": action_item_text,
+            "hs_task_body": (
+                f"[AUTO-GENERATED | fingerprint={task_fingerprint}]\n\n"
+                f"{action_item_text}"
+            ),
             "hs_task_status": "NOT_STARTED",
             "hs_timestamp": int(due_date.timestamp() * 1000),  # HubSpot expects milliseconds
         }
     }
     
+
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(
+            "https://api.hubapi.com/crm/v3/objects/tasks",
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {Config.HUBSPOT_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            timeout=5,
+        )
         response.raise_for_status()
-        result = response.json()
-        return result.get("id")
-    except Exception as e:
-        # Log error but don't fail the workflow
-        print(f"HubSpot task creation failed: {e}")
+        return response.json().get("id")
+
+    except requests.RequestException as e:
+        logger.warning("HubSpot request failed", exc_info=e)
+        raise HubSpotIntegrationError("HubSpot API request failed") from e
+
+
+    except HubSpotIntegrationError as e:
+        logger.warning(str(e), exc_info=e)
         return None
 
 

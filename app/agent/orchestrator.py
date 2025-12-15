@@ -3,23 +3,35 @@
 from typing import Dict, Any
 from datetime import datetime, date
 from dateutil import parser
+
 from app.agent.intents import recognize_intent
 from app.agent.workflows import MEETING_SUMMARY_WORKFLOW
 from app.agent.commitments import create_commitments_from_action_items
+
 from app.memory.repo import MemoryRepo
+from app.memory.schemas import MeetingCreate, MeetingUpdate, MemoryEntryCreate
+
 from app.integrations.calendar import (
     get_most_recent_meeting_by_client,
     get_meeting_by_client_and_date,
     get_next_upcoming_meeting_from_calendar,
+    get_most_recent_meeting,
 )
+
 from app.integrations.zoom import extract_zoom_meeting_id, fetch_zoom_transcript
+
 from app.tools.summarize import summarize_meeting
-from app.memory.schemas import MeetingCreate, MeetingUpdate
-from app.llm.client import chat
 from app.tools.followup import generate_followup_email
 from app.tools.meeting_brief import generate_meeting_brief
 
+from app.integrations.hubspot import HubSpotIntegrationError
 
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+ENABLE_HUBSPOT = False
 
 class Orchestrator:
     """Coordinates agent operations - no SQL, HTTP, or LLM prompts here."""
@@ -27,43 +39,30 @@ class Orchestrator:
     def __init__(self, memory_repo: MemoryRepo):
         self.memory_repo = memory_repo
 
-    # ----------------------------
+    # -------------------------------------------------
     # Helpers
-    # ----------------------------
+    # -------------------------------------------------
 
     def _parse_target_date(self, date_str: str) -> date:
         """
         Parse ISO or natural-language dates into a date object.
-        If no year is specified, bias toward the next future occurrence.
+        If no year is specified and the date is in the past,
+        assume the next future occurrence.
         """
-        print(f"DIAGNOSTIC: _parse_target_date() input: {repr(date_str)}")
         parsed = parser.parse(date_str, default=datetime.utcnow())
         parsed_date = parsed.date()
-        print(f"DIAGNOSTIC: dateutil.parser result: {parsed} -> date: {parsed_date}")
 
         today = datetime.utcnow().date()
-        print(f"DIAGNOSTIC: Today's date: {today}")
+        year_specified = "20" in date_str
 
-        # If user did NOT specify a year and the date is in the past,
-        # assume they mean the next occurrence (next year)
-        year_in_string = "20" in date_str
-        print(f"DIAGNOSTIC: Year in string ('20' found): {year_in_string}")
-        print(f"DIAGNOSTIC: Parsed date < today: {parsed_date < today}")
-        
-        if not year_in_string and parsed_date < today:
-            original_date = parsed_date
+        if not year_specified and parsed_date < today:
             parsed_date = date(parsed_date.year + 1, parsed_date.month, parsed_date.day)
-            print(f"DIAGNOSTIC: Adjusted year (no year in string + past date): {original_date} -> {parsed_date}")
-        else:
-            print(f"DIAGNOSTIC: No year adjustment needed")
 
-        print(f"DIAGNOSTIC: Final parsed date: {parsed_date}")
         return parsed_date
 
-
-    # ----------------------------
+    # -------------------------------------------------
     # Public entry point
-    # ----------------------------
+    # -------------------------------------------------
 
     def process_message(self, user_message: str) -> Dict[str, Any]:
         intent_result = recognize_intent(user_message)
@@ -92,6 +91,7 @@ class Orchestrator:
                     "- Generating follow-up emails\n"
                     "- Briefing you on upcoming meetings\n\n"
                     "Try:\n"
+                    "- 'Summarize my last meeting'\n"
                     "- 'Brief me on my next meeting'\n"
                     "- 'Brief me on my meeting with MTCA'"
                 ),
@@ -108,60 +108,40 @@ class Orchestrator:
 
         return response
 
-
-
-    # ----------------------------
-    # Workflow execution
-    # ----------------------------
+    # -------------------------------------------------
+    # Meeting Summary Workflow
+    # -------------------------------------------------
 
     def _execute_meeting_summary_workflow(
         self, entities: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Execute the meeting summary workflow.
-        """
 
-        # Step 1: Resolve meeting
         client_name = entities.get("client_name")
-        if not client_name:
-            return {
-                "message": (
-                    "I couldn't identify which client meeting you're referring to. "
-                    "Please specify the client name."
-                ),
-                "metadata": {"error": "missing_client_name"},
-            }
-
         date_str = entities.get("date")
         calendar_event = None
-        
-        print("=" * 80)
-        print("DIAGNOSTIC: Orchestrator date resolution")
-        print("=" * 80)
-        print(f"DIAGNOSTIC: Raw entities: {entities}")
-        print(f"DIAGNOSTIC: date_str from entities: {repr(date_str)}")
-        print(f"DIAGNOSTIC: date_str is truthy: {bool(date_str)}")
 
-        # --- DATE-AWARE RESOLUTION ---
-        if date_str:
-            print(f"\nDIAGNOSTIC: Entering date-aware resolution branch")
+        # CASE 1: No client, no date → most recent meeting overall
+        if not client_name and not date_str:
+            calendar_event = get_most_recent_meeting()
+
+        # CASE 2: Client + date → strict date resolution
+        elif client_name and date_str:
             try:
-                print(f"DIAGNOSTIC: Parsing date_str: {repr(date_str)}")
                 target_date = self._parse_target_date(date_str)
-                print(f"DIAGNOSTIC: Parsed target_date: {target_date} (type: {type(target_date)})")
-                print(f"DIAGNOSTIC: target_date.year: {target_date.year}")
-                print(f"DIAGNOSTIC: Calling get_meeting_by_client_and_date()...")
                 calendar_event = get_meeting_by_client_and_date(
                     client_name=client_name,
                     target_date=target_date,
                 )
-                print(f"DIAGNOSTIC: get_meeting_by_client_and_date() returned: {calendar_event is not None}")
-                if calendar_event:
-                    print(f"DIAGNOSTIC: Found event: {calendar_event.get('summary')} on {calendar_event.get('start')}")
+                if not calendar_event:
+                    return {
+                        "message": f"I couldn't find a meeting with {client_name} on {date_str}.",
+                        "metadata": {
+                            "error": "meeting_not_found_for_date",
+                            "client_name": client_name,
+                            "date": date_str,
+                        },
+                    }
             except Exception as e:
-                print(f"DIAGNOSTIC: Exception during date parsing/lookup: {type(e).__name__}: {e}")
-                import traceback
-                traceback.print_exc()
                 return {
                     "message": (
                         f"I couldn't resolve the meeting date you requested "
@@ -169,83 +149,61 @@ class Orchestrator:
                     ),
                     "metadata": {
                         "error": "date_resolution_failed",
-                        "client_name": client_name,
-                        "date": date_str,
                         "exception": str(e),
                     },
                 }
 
-
-            # If user explicitly asked for a date, do NOT silently fall back
-            if not calendar_event:
-                print(f"DIAGNOSTIC: No calendar_event found for date {date_str}, returning error")
-                return {
-                    "message": (
-                        f"I couldn't find a meeting with {client_name} on {date_str}."
-                    ),
-                    "metadata": {
-                        "error": "meeting_not_found_for_date",
-                        "client_name": client_name,
-                        "date": date_str,
-                    },
-                }
-        else:
-            print(f"DIAGNOSTIC: date_str is falsy, skipping date-aware branch")
-
-        # --- MOST RECENT FALLBACK ---
-        if not calendar_event:
-            print(f"\nDIAGNOSTIC: calendar_event is None, entering fallback to get_most_recent_meeting_by_client()")
-            print(f"DIAGNOSTIC: Fallback reason: {'date_str was falsy' if not date_str else 'date lookup returned None'}")
+        # CASE 3: Client only → most recent meeting for that client
+        elif client_name:
             calendar_event = get_most_recent_meeting_by_client(client_name)
-            if calendar_event:
-                print(f"DIAGNOSTIC: Fallback returned event: {calendar_event.get('summary')} on {calendar_event.get('start')}")
-            else:
-                print(f"DIAGNOSTIC: Fallback returned None")
 
-        if not calendar_event:
+        # CASE 4: Date only → ambiguous
+        elif date_str:
             return {
                 "message": (
-                    f"I couldn't find any recent meetings with {client_name}. "
-                    "Please check your calendar."
+                    "I need the client name to summarize a meeting for a specific date. "
+                    "Please try again and include the client."
                 ),
                 "metadata": {
-                    "error": "meeting_not_found",
-                    "client_name": client_name,
+                    "error": "missing_client_name",
+                    "date": date_str,
                 },
             }
 
-        # Step 2: Check memory
+        if not calendar_event:
+            return {
+                "message": "I couldn’t find any meetings matching your request.",
+                "metadata": {"error": "meeting_not_found"},
+            }
+
+        if not client_name:
+            client_name = calendar_event.get("summary", "Unknown Client")
+
+        # -------------------------------------------------
+        # Memory + Transcript Resolution
+        # -------------------------------------------------
+
         existing_meeting = self.memory_repo.get_meeting_by_calendar_id(
             calendar_event["id"]
         )
 
-        # --- Resolve meeting_date early (needed for Zoom UUID matching) ---
         start_str = calendar_event.get("start")
-
         try:
-            if start_str and "T" in start_str:
-                meeting_date = datetime.fromisoformat(
-                    start_str.replace("Z", "+00:00")
-                )
-            elif start_str:
-                meeting_date = datetime.fromisoformat(start_str)
-            else:
-                meeting_date = datetime.utcnow()
+            meeting_date = (
+                datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                if start_str
+                else datetime.utcnow()
+            )
         except Exception:
             meeting_date = datetime.utcnow()
 
-
-        # Step 3: Extract transcript
         zoom_meeting_id = extract_zoom_meeting_id(calendar_event)
         transcript = (
-            fetch_zoom_transcript(
-                zoom_meeting_id,
-                expected_date=meeting_date,
-            )
+            fetch_zoom_transcript(zoom_meeting_id, expected_date=meeting_date)
             if zoom_meeting_id
             else None
         )
-        # Step 4: Create or reuse meeting record
+
         if not existing_meeting:
             meeting = self.memory_repo.create_meeting(
                 MeetingCreate(
@@ -259,27 +217,25 @@ class Orchestrator:
         else:
             meeting = existing_meeting
 
+        # -------------------------------------------------
+        # Summarization
+        # -------------------------------------------------
 
-        # Step 5: Retrieve memory context
         memory_entries = self.memory_repo.get_memory_for_client(client_name)
         memory_context = "\n".join(
             f"{entry.key}: {entry.value}" for entry in memory_entries[:5]
         )
 
-        # Step 6: Summarize
-        meeting_metadata = {
-            "date": calendar_event.get("start"),
-            "attendees": calendar_event.get("attendees", []),
-            "client_name": client_name,
-        }
-
         summary_result = summarize_meeting(
             transcript=transcript or meeting.transcript,
-            meeting_metadata=meeting_metadata,
+            meeting_metadata={
+                "date": calendar_event.get("start"),
+                "attendees": calendar_event.get("attendees", []),
+                "client_name": client_name,
+            },
             memory_context=memory_context,
         )
 
-        # Step 7: Persist summary
         self.memory_repo.update_meeting(
             meeting.id,
             MeetingUpdate(
@@ -289,21 +245,7 @@ class Orchestrator:
             ),
         )
 
-        # Step 8: Commitments
-        action_items = summary_result.get("action_items", [])
-        commitments = []
-
-        if action_items:
-            commitments = create_commitments_from_action_items(
-                action_items=action_items,
-                meeting_id=meeting.id,
-                memory_repo=self.memory_repo,
-            )
-
-        # Step 9: Memory entry
         if summary_result.get("summary"):
-            from app.memory.schemas import MemoryEntryCreate
-
             self.memory_repo.create_memory_entry(
                 MemoryEntryCreate(
                     meeting_id=meeting.id,
@@ -313,42 +255,89 @@ class Orchestrator:
                 )
             )
 
-        # Step 10: Response
-        commitments_count = len(commitments)
+        commitments = []
+        hubspot_errors = []
+
+        if summary_result.get("action_items"):
+            try:
+                commitments = create_commitments_from_action_items(
+                    summary_result["action_items"],
+                    meeting.id,
+                    self.memory_repo,
+                )
+            except HubSpotIntegrationError as e:
+                logger.warning("HubSpot integration failed during commitment creation", exc_info=e)
+                hubspot_errors.append(str(e))
+
+        # -------------------------------------------------
+        # Optional HubSpot Integration (non-blocking)
+        # -------------------------------------------------
+
+        if ENABLE_HUBSPOT:
+            try:
+                create_hubspot_task(
+                    meeting_id=meeting.id,
+                    client_name=client_name,
+                    action_items=summary_result.get("action_items", []),
+                )
+            except Exception as e:
+                logger.warning(f"HubSpot task creation failed (ignored): {e}")
+
+
+        # -------------------------------------------------
+        # Response
+        # -------------------------------------------------
 
         response_message = f"""**Meeting Summary for {client_name}**
 
-    {summary_result['summary']}
+        {summary_result['summary']}
 
-    **Decisions:**
-    {chr(10).join(f"- {d}" for d in summary_result.get('decisions', [])) or "None"}
+        **Decisions:**
+        {chr(10).join(f"- {d}" for d in summary_result.get('decisions', [])) or "None"}
 
-    **Action Items:**
-    {chr(10).join(f"- {item.get('text', '')}" for item in action_items) or "None"}
+        **Action Items:**
+        {chr(10).join(f"- {item.get('text', '')}" for item in summary_result.get('action_items', [])) or "None"}
+        """
 
-    {f"{commitments_count} task(s) created in HubSpot." if commitments_count else ""}
-    """
+        self.memory_repo.set_active_meeting(meeting.id)
+
 
         return {
             "message": response_message,
             "metadata": {
                 "meeting_id": meeting.id,
                 "client_name": client_name,
-                "commitments_created": commitments_count,
-                "has_transcript": bool(transcript or meeting.transcript),
+                "commitments_created": len(commitments),
+                "hubspot_status": "failed" if hubspot_errors else "success",
             },
         }
 
-    def _execute_followup_workflow(self) -> Dict[str, Any]:
-        meeting = self.memory_repo.get_most_recent_meeting()
 
-        if not meeting or not meeting.summary:
+
+    # -------------------------------------------------
+    # Follow-up Workflow
+    # -------------------------------------------------
+
+    def _execute_followup_workflow(self) -> Dict[str, Any]:
+        meeting = self.memory_repo.get_active_meeting()
+
+        if not meeting:
+            meeting = self.memory_repo.get_most_recent_meeting()
+
+
+        if not meeting:
+            return {
+                "message": "I don’t have any meetings on record yet.",
+                "metadata": {"error": "no_meetings"},
+            }
+
+        if not meeting.summary:
             return {
                 "message": (
-                    "I don't have a recent summarized meeting to generate a follow-up for yet. "
-                    "Try summarizing a meeting first."
+                    "I don’t have a summarized meeting to generate a follow-up from yet. "
+                    "Please summarize a meeting first."
                 ),
-                "metadata": {"error": "no_summarized_meeting"},
+                "metadata": {"error": "meeting_not_summarized"},
             }
 
         followup_text = generate_followup_email(
@@ -357,7 +346,7 @@ class Orchestrator:
             action_items=meeting.action_items or [],
             client_name=meeting.client_name,
             meeting_date=meeting.meeting_date.date().isoformat(),
-            memory_context="",  # optional, safe default
+            memory_context="",
         )
 
         return {
@@ -368,22 +357,24 @@ class Orchestrator:
             },
         }
 
+    # -------------------------------------------------
+    # Meeting Brief Workflow
+    # -------------------------------------------------
+
     def _execute_meeting_brief_workflow(self, entities: Dict[str, Any]) -> Dict[str, Any]:
         client_name = entities.get("client_name")
 
-        # 1️⃣ Resolve upcoming meeting from calendar
         calendar_event = get_next_upcoming_meeting_from_calendar(client_name)
 
         if not calendar_event:
             return {
                 "message": (
-                    f"I couldn't find an upcoming meeting"
+                    "I couldn’t find any upcoming meetings"
                     f"{f' with {client_name}' if client_name else ''}."
                 ),
                 "metadata": {"error": "no_upcoming_meeting"},
             }
 
-        # 2️⃣ Pull memory context (safe default)
         memory_entries = (
             self.memory_repo.get_memory_for_client(client_name)
             if client_name
@@ -394,7 +385,6 @@ class Orchestrator:
             f"- {entry.value}" for entry in memory_entries[:5]
         )
 
-        # 3️⃣ Generate brief
         brief_text = generate_meeting_brief(
             client_name=client_name,
             meeting_title=calendar_event.get("summary", "Upcoming Meeting"),
