@@ -102,6 +102,23 @@ class MemoryRepo:
             .first()
         )
 
+    def update_meeting_company(self, meeting_id: int, hubspot_company_id: str):
+        meeting = (
+            self.session.query(Meeting)
+            .filter(Meeting.id == meeting_id)
+            .first()
+        )
+        if meeting:
+            meeting.hubspot_company_id = hubspot_company_id
+            self.session.commit()
+
+    def get_meeting(self, meeting_id: int) -> Optional[Meeting]:
+        return (
+            self.session.query(Meeting)
+            .filter(Meeting.id == meeting_id)
+            .first()
+        )
+
 
     # Memory entry operations
     def create_memory_entry(self, entry_data: MemoryEntryCreate) -> MemoryEntry:
@@ -157,6 +174,59 @@ class MemoryRepo:
         self.session.refresh(commitment)
         return commitment
     
+    def get_pending_commitments(self, meeting_id: int) -> List[Commitment]:
+        """Return all pending commitments for a meeting."""
+        return (
+            self.session.query(Commitment)
+            .filter(
+                Commitment.meeting_id == meeting_id,
+                Commitment.status == "pending",
+            )
+            .all()
+        )
+
+    def mark_commitment_created(
+        self,
+        commitment_id: int,
+        hubspot_task_id: str,
+    ) -> Commitment:
+        """Mark commitment as successfully created in HubSpot."""
+        commitment = (
+            self.session.query(Commitment)
+            .filter(Commitment.id == commitment_id)
+            .first()
+        )
+        if not commitment:
+            raise ValueError(f"Commitment {commitment_id} not found")
+
+        commitment.hubspot_task_id = hubspot_task_id
+        commitment.status = "created"
+        commitment.updated_at = datetime.utcnow()
+
+        self.session.commit()
+        self.session.refresh(commitment)
+        return commitment
+
+    def mark_commitment_failed(self, commitment_id: int) -> Commitment:
+        """Mark commitment as failed during HubSpot creation."""
+        commitment = (
+            self.session.query(Commitment)
+            .filter(Commitment.id == commitment_id)
+            .first()
+        )
+        if not commitment:
+            raise ValueError(f"Commitment {commitment_id} not found")
+
+        commitment.status = "failed"
+        commitment.updated_at = datetime.utcnow()
+
+        self.session.commit()
+        self.session.refresh(commitment)
+        return commitment
+
+
+
+
     # Interaction operations
     def create_interaction(self, user_message: str, intent: str, response: str, 
                           workflow: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Interaction:

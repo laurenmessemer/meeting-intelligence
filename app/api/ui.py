@@ -341,6 +341,9 @@ def chat_ui():
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
+
+        let lastMetadata = null;
+
         
         function handleKeyPress(event) {
             if (event.key === 'Enter') {
@@ -348,8 +351,8 @@ def chat_ui():
             }
         }
         
-        async function sendMessage() {
-            const message = messageInput.value.trim();
+        async function sendMessage(textOverride = null) {
+            const message = textOverride ?? messageInput.value.trim();
             if (!message) return;
             
             // Disable input with smooth transition
@@ -378,6 +381,8 @@ def chat_ui():
                 }
                 
                 const data = await response.json();
+                lastMetadata = data.metadata || null;
+
                 
                 // Remove loading with fade-out
                 if (loadingId) {
@@ -390,6 +395,9 @@ def chat_ui():
                 // Add response with slight delay for smooth transition
                 setTimeout(() => {
                     addMessage(data.message, 'agent');
+                    if (data.metadata?.requires_hubspot_approval) {
+                        renderHubSpotApproval(data.metadata.proposed_hubspot_tasks || []);
+                    }
                 }, 100);
             } catch (error) {
                 if (loadingId) {
@@ -411,6 +419,47 @@ def chat_ui():
             }
         }
         
+        function sendApprovalMessage() {
+            sendMessageWithText("approve hubspot tasks");
+        }
+
+        async function sendMessageWithText(text) {
+            if (!text) return;
+
+            // Disable input
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+
+            // Add user message to UI
+            addMessage(text, 'user');
+
+            // Add loading indicator
+            const loadingId = addMessage('Adding tasks to HubSpot...', 'agent', 'loading');
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+
+                if (!response.ok) throw new Error('Server error');
+
+                const data = await response.json();
+
+                removeMessage(loadingId);
+                addMessage(data.message, 'agent');
+
+            } catch (error) {
+                removeMessage(loadingId);
+                addMessage('Failed to add tasks to HubSpot.', 'agent');
+            } finally {
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        }
+
         function addMessage(text, type, className = '') {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type} ${className}`;
@@ -447,6 +496,46 @@ def chat_ui():
             return messageDiv;
         }
         
+        function renderHubSpotApproval(tasks) {
+            const container = document.createElement('div');
+            container.className = 'message agent';
+            container.style.marginTop = '8px';
+
+            const title = document.createElement('strong');
+            title.textContent = `I found ${tasks.length} action item(s).`;
+            container.appendChild(title);
+
+            const list = document.createElement('ul');
+            list.style.marginTop = '8px';
+            list.style.paddingLeft = '18px';
+
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.textContent = task.text;
+                list.appendChild(li);
+            });
+
+            container.appendChild(list);
+
+            const button = document.createElement('button');
+            button.textContent = 'Add to HubSpot';
+            button.style.marginTop = '12px';
+
+            button.onclick = () => {
+                sendApprovalMessage();
+            };
+
+            container.appendChild(button);
+            messagesDiv.appendChild(container);
+
+            messagesDiv.scrollTo({
+                top: messagesDiv.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+
+
         function removeMessage(element) {
             if (typeof element === 'string') {
                 // If ID passed, find by ID

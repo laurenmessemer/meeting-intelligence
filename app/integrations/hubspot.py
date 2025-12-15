@@ -11,8 +11,109 @@ class HubSpotIntegrationError(Exception):
     """Raised when a HubSpot API request fails in a controlled way."""
     pass
 
+def normalize_company_name(raw_name: str) -> str:
+    """
+    Normalize meeting titles or noisy client strings
+    into a clean company name for HubSpot matching.
+    """
+    if not raw_name:
+        return raw_name
 
-def create_task(action_item_text: str, due_date: Optional[datetime] = None) -> Optional[str]:
+    # Common patterns to strip
+    blacklist_phrases = [
+        "meeting",
+        "call",
+        "sync",
+        "review",
+        "crm",
+        "college list",
+        ":",
+        "-",
+    ]
+
+    name = raw_name.lower()
+
+    for phrase in blacklist_phrases:
+        name = name.replace(phrase, "")
+
+    # Collapse whitespace and title-case
+    name = " ".join(name.split()).title()
+
+    return name
+
+def get_company_by_name(company_name: str):
+    """
+    Find a HubSpot company by name (best-effort).
+    Returns company dict or None.
+    """
+    payload = {
+        "filterGroups": [
+            {
+                "filters": [
+                    {
+                        "propertyName": "name",
+                        "operator": "CONTAINS_TOKEN",
+                        "value": company_name,
+                    }
+                ]
+            }
+        ],
+        "properties": ["name"],
+        "limit": 1,
+    }
+
+    response = _hubspot_post("/crm/v3/objects/companies/search", payload)
+
+    results = response.get("results", [])
+    return results[0] if results else None
+
+def get_or_create_company_id(company_name: str) -> str:
+    """
+    Resolve a HubSpot company ID by name.
+    Creates the company if it does not exist.
+    """
+    company = get_company_by_name(company_name)
+    if company:
+        return company["id"]
+
+    response = _hubspot_post(
+        "/crm/v3/objects/companies",
+        {"properties": {"name": company_name}},
+    )
+    return response["id"]
+
+def _hubspot_post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Internal helper for HubSpot POST requests.
+    Raises HubSpotIntegrationError on failure.
+    """
+    if not Config.HUBSPOT_API_KEY:
+        raise HubSpotIntegrationError("HubSpot API key not configured")
+
+    url = f"https://api.hubapi.com{path}"
+
+    try:
+        response = requests.post(
+            url,
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {Config.HUBSPOT_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            timeout=5,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    except requests.RequestException as e:
+        logger.warning(f"HubSpot POST failed: {path}", exc_info=e)
+        raise HubSpotIntegrationError("HubSpot API request failed") from e
+
+def create_task(
+    action_item_text: str,
+    due_date: Optional[datetime],
+    company_id: Optional[str] = None,
+) -> str:
     """
     Create a HubSpot task for an action item.
     
@@ -68,7 +169,36 @@ def create_task(action_item_text: str, due_date: Optional[datetime] = None) -> O
             timeout=5,
         )
         response.raise_for_status()
-        return response.json().get("id")
+        task_id = response.json().get("id")
+
+        # -------------------------------------------------
+        # Associate task to company (if provided)
+        # -------------------------------------------------
+        if company_id:
+            assoc_url = (
+                f"https://api.hubapi.com/crm/v3/objects/tasks/"
+                f"{task_id}/associations/companies/{company_id}/task_to_company"
+            )
+
+            assoc_response = requests.put(
+                assoc_url,
+                headers={
+                    "Authorization": f"Bearer {Config.HUBSPOT_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                timeout=5,
+            )
+
+            # We do NOT raise here — association failure should not kill task creation
+            if assoc_response.status_code not in (200, 201, 204):
+                logger.warning(
+                    f"Failed to associate task {task_id} to company {company_id}: "
+                    f"{assoc_response.text}"
+                )
+
+        return task_id
+
+        
 
     except requests.RequestException as e:
         logger.warning("HubSpot request failed", exc_info=e)

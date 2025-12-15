@@ -8,20 +8,48 @@ from app.llm.prompts import MEETING_SUMMARY_SYSTEM, MEETING_SUMMARY_USER
 def _extract_json(text: str) -> Dict[str, Any]:
     """
     Safely extract JSON from LLM output.
-    Handles raw JSON and JSON wrapped in markdown fences.
+    Handles:
+    - Raw JSON
+    - ```json fenced blocks
+    - Extra prose before/after JSON
     """
+
     text = text.strip()
 
-    # Remove markdown code fences if present
-    if text.startswith("```"):
+    # Case 1: ```json fenced block anywhere in output
+    if "```" in text:
         lines = text.splitlines()
-        # Drop first and last fence lines
-        text = "\n".join(
-            line for line in lines
-            if not line.strip().startswith("```")
-        ).strip()
+        json_lines = []
+        in_json = False
 
-    return json.loads(text)
+        for line in lines:
+            if line.strip().startswith("```"):
+                in_json = not in_json
+                continue
+            if in_json:
+                json_lines.append(line)
+
+        if json_lines:
+            try:
+                return json.loads("\n".join(json_lines))
+            except json.JSONDecodeError:
+                pass  # fall through safely
+
+    # Case 2: Raw JSON (no fences)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Case 3: Try to locate first JSON object inside text
+    try:
+        start = text.index("{")
+        end = text.rindex("}") + 1
+        return json.loads(text[start:end])
+    except Exception:
+        pass
+
+    raise ValueError("No valid JSON found in LLM response")
 
 
 def summarize_meeting(transcript: Optional[str], meeting_metadata: Dict[str, Any], 
@@ -76,8 +104,8 @@ def summarize_meeting(transcript: Optional[str], meeting_metadata: Dict[str, Any
     except Exception as e:
         print(f"DIAGNOSTIC: Failed to parse summary JSON: {e}")
         return {
-            "summary": response_text.strip(),
+            "summary": "I generated a summary, but it could not be parsed reliably.",
             "decisions": [],
-            "action_items": []
+            "action_items": [],
         }
 

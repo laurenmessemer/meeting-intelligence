@@ -23,15 +23,19 @@ from app.integrations.zoom import extract_zoom_meeting_id, fetch_zoom_transcript
 from app.tools.summarize import summarize_meeting
 from app.tools.followup import generate_followup_email
 from app.tools.meeting_brief import generate_meeting_brief
+from app.agent.utils import resolve_client_name
 
-from app.integrations.hubspot import HubSpotIntegrationError
-
+from app.integrations.hubspot import (
+    HubSpotIntegrationError,
+    get_company_by_name,
+    get_or_create_company_id
+)
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-ENABLE_HUBSPOT = False
+ENABLE_HUBSPOT = True
 
 class Orchestrator:
     """Coordinates agent operations - no SQL, HTTP, or LLM prompts here."""
@@ -82,6 +86,9 @@ class Orchestrator:
         elif intent == "meeting_brief":
             workflow = "meeting_brief"
             response = self._execute_meeting_brief_workflow(entities)
+        
+        elif intent == "approve_hubspot_tasks":
+            response = self._execute_hubspot_approval_workflow(entities)
 
         else:
             response = {
@@ -119,6 +126,7 @@ class Orchestrator:
         client_name = entities.get("client_name")
         date_str = entities.get("date")
         calendar_event = None
+        existing_meeting = None 
 
         # CASE 1: No client, no date → most recent meeting overall
         if not client_name and not date_str:
@@ -141,6 +149,7 @@ class Orchestrator:
                             "date": date_str,
                         },
                     }
+                    
             except Exception as e:
                 return {
                     "message": (
@@ -176,16 +185,41 @@ class Orchestrator:
                 "metadata": {"error": "meeting_not_found"},
             }
 
-        if not client_name:
-            client_name = calendar_event.get("summary", "Unknown Client")
-
         # -------------------------------------------------
-        # Memory + Transcript Resolution
+        # Load existing meeting early (if it exists)
         # -------------------------------------------------
 
         existing_meeting = self.memory_repo.get_meeting_by_calendar_id(
             calendar_event["id"]
         )
+
+
+        # -------------------------------------------------
+        # Client Resolution (authoritative)
+        # -------------------------------------------------
+
+        client_name = resolve_client_name(
+            explicit_client=entities.get("client_name"),
+            meeting=existing_meeting,
+            calendar_event=calendar_event,
+        )
+
+        if not client_name:
+            return {
+                "message": (
+                    "I couldn’t confidently determine the client for this meeting. "
+                    "Please try again and specify the client name."
+                ),
+                "metadata": {
+                    "error": "client_not_resolved",
+                    "calendar_summary": calendar_event.get("summary"),
+                },
+            }
+
+        # -------------------------------------------------
+        # Memory + Transcript Resolution
+        # -------------------------------------------------
+
 
         start_str = calendar_event.get("start")
         try:
@@ -216,6 +250,25 @@ class Orchestrator:
             )
         else:
             meeting = existing_meeting
+
+        # -------------------------------------------------
+        # HubSpot Company Resolution (safe: meeting exists)
+        # -------------------------------------------------
+
+        if ENABLE_HUBSPOT and not meeting.hubspot_company_id:
+            try:
+                from app.integrations.hubspot import normalize_company_name
+
+                normalized_company = normalize_company_name(client_name)
+
+                meeting.hubspot_company_id = get_or_create_company_id(normalized_company)
+                self.memory_repo.session.commit()
+
+            except HubSpotIntegrationError as e:
+                logger.warning(
+                    f"Failed to resolve HubSpot company for {client_name}",
+                    exc_info=e,
+                )
 
         # -------------------------------------------------
         # Summarization
@@ -269,20 +322,6 @@ class Orchestrator:
                 logger.warning("HubSpot integration failed during commitment creation", exc_info=e)
                 hubspot_errors.append(str(e))
 
-        # -------------------------------------------------
-        # Optional HubSpot Integration (non-blocking)
-        # -------------------------------------------------
-
-        if ENABLE_HUBSPOT:
-            try:
-                create_hubspot_task(
-                    meeting_id=meeting.id,
-                    client_name=client_name,
-                    action_items=summary_result.get("action_items", []),
-                )
-            except Exception as e:
-                logger.warning(f"HubSpot task creation failed (ignored): {e}")
-
 
         # -------------------------------------------------
         # Response
@@ -302,17 +341,24 @@ class Orchestrator:
         self.memory_repo.set_active_meeting(meeting.id)
 
 
+        proposed_tasks = [
+            {
+                "text": item.get("text"),
+                "owner": item.get("owner"),
+                "deadline": item.get("deadline"),
+            }
+            for item in summary_result.get("action_items", [])
+        ]
+
         return {
             "message": response_message,
             "metadata": {
                 "meeting_id": meeting.id,
                 "client_name": client_name,
-                "commitments_created": len(commitments),
-                "hubspot_status": "failed" if hubspot_errors else "success",
+                "proposed_hubspot_tasks": proposed_tasks,
+                "requires_hubspot_approval": bool(proposed_tasks),
             },
         }
-
-
 
     # -------------------------------------------------
     # Follow-up Workflow
@@ -399,4 +445,31 @@ class Orchestrator:
                 "calendar_event_id": calendar_event.get("id"),
                 "client_name": client_name,
             },
+        }
+
+    def _execute_hubspot_approval_workflow(self, entities):
+        meeting = self.memory_repo.get_active_meeting()
+
+        if not meeting:
+            return {
+                "message": "There is no active meeting to approve tasks for.",
+                "metadata": {"error": "no_active_meeting"},
+            }
+
+        from app.tools.hubspot_tasks import create_approved_hubspot_tasks
+
+        result = create_approved_hubspot_tasks(
+            meeting_id=meeting.id,
+            memory_repo=self.memory_repo,
+        )
+
+        if not result["created"] and not result["failed"]:
+            return {
+                "message": "There are no pending HubSpot tasks to approve.",
+                "metadata": {"status": "no_pending_tasks"},
+            }
+
+        return {
+            "message": f"Added {len(result['created'])} tasks to HubSpot.",
+            "metadata": result,
         }

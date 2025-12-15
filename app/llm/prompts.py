@@ -5,12 +5,12 @@ Analyze the user's message and determine their intent. Extract relevant entities
 
 Respond in JSON format:
 {
-  "intent": "summarize_meeting" | "generate_followup" | "meeting_brief" |"other",
+  "intent": "summarize_meeting" | "generate_followup" | "meeting_brief" | "approve_hubspot_tasks" | "other",
   "confidence": 0.0-1.0,
   "entities": {
     "client_name": "string or null",
-    "date": "ISO 8601 date in YYYY-MM-DD format, or null. 
-    Convert natural language dates (e.g. 'December 12th, 2025') into YYYY-MM-DD."
+    "date": "ISO 8601 date in YYYY-MM-DD format, or null. Convert natural language dates.",
+    "task_selection": "array of integers or null"
   }
 }
 
@@ -18,7 +18,19 @@ Known intents:
 - summarize_meeting: User wants to summarize a meeting with a client
 - generate_followup: User wants a follow-up email for the most recent meeting
 - meeting_brief: User wants preparation notes for an upcoming meeting
+- approve_hubspot_tasks: User confirms they want to create HubSpot tasks
 
+Examples of approve_hubspot_tasks:
+- "Yes, add those to HubSpot"
+- "Create the tasks in HubSpot"
+- "Go ahead and sync them"
+- "Add all of those action items"
+- "Approve HubSpot tasks"
+
+task_selection:
+- If the user specifies which tasks to approve (e.g. "only the first two"),
+  return a list of indices (0-based).
+- Otherwise return null.
 
 Return ONLY raw JSON. Do not include markdown, code fences, or explanation.
 """
