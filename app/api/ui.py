@@ -14,13 +14,13 @@ def chat_ui():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meeting Intelligence Agent</title>
+    <title>Meeting Assistant</title>
     <style>
-        /* Design Tokens - iOS 26 Inspired */
+        /* Design Tokens */
         :root {
             /* Colors */
-            --color-primary: #007AFF;
-            --color-primary-hover: #0051D5;
+            --color-primary: rgba(255, 149, 0, 0.9); /* vibrant orange */;
+            --color-primary-hover: rgba(235, 132, 0, 0.9); 
             --color-surface: rgba(255, 255, 255, 0.7);
             --color-surface-elevated: rgba(255, 255, 255, 0.85);
             --color-background: linear-gradient(135deg, #F5F7FA 0%, #E8ECF1 100%);
@@ -96,22 +96,40 @@ def chat_ui():
         
         /* Glassmorphic Header */
         .header {
-            background: var(--color-surface-elevated);
-            backdrop-filter: blur(var(--blur-lg)) saturate(180%);
-            -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(180%);
-            border-bottom: 0.5px solid var(--color-border);
-            padding: var(--spacing-xl) var(--spacing-lg);
+            padding: var(--spacing-md) var(--spacing-lg);
             text-align: center;
             position: sticky;
             top: 0;
             z-index: 100;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            background: transparent;
+            border-bottom: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            left: calc(-50vw + 50%);
+            right: calc(-50vw + 50%);
+            top: 0;
+            bottom: 0;
+            background: var(--color-surface-elevated);
+            backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+            -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+            border-bottom: 0.5px solid var(--color-border);
             box-shadow: var(--shadow-sm);
+            z-index: -1;
         }
         
         .header h1 {
             font-size: var(--font-size-2xl);
             font-weight: var(--font-weight-semibold);
             letter-spacing: -0.5px;
+            line-height: 1.2;
             color: var(--color-text-primary);
             margin: 0;
         }
@@ -120,10 +138,10 @@ def chat_ui():
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: var(--spacing-xl) var(--spacing-lg);
+            padding: var(--spacing-sm) var(--spacing-lg);
             display: flex;
             flex-direction: column;
-            gap: var(--spacing-md);
+            gap: var(--spacing-sm);
             scroll-behavior: smooth;
         }
         
@@ -146,15 +164,159 @@ def chat_ui():
         
         /* Message Bubbles */
         .message {
-            padding: var(--spacing-md) var(--spacing-lg);
+            padding: var(--spacing-sm) var(--spacing-md);
             border-radius: 20px;
             max-width: 75%;
             word-wrap: break-word;
-            white-space: pre-wrap;
+            white-space: pre-line;
             font-size: var(--font-size-base);
-            line-height: 1.5;
+            line-height: 1.4;
             transition: transform var(--transition-base), opacity var(--transition-base);
             animation: messageSlideIn var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Typography reset inside message bubbles */
+        .message,
+        .message-agent-welcome {
+            /* Reset all text elements to remove default browser indentation */
+        }
+        
+        .message p,
+        .message h1,
+        .message h2,
+        .message h3,
+        .message h4,
+        .message h5,
+        .message h6,
+        .message ul,
+        .message ol,
+        .message li,
+        .message-agent-welcome p,
+        .message-agent-welcome h1,
+        .message-agent-welcome h2,
+        .message-agent-welcome h3,
+        .message-agent-welcome h4,
+        .message-agent-welcome h5,
+        .message-agent-welcome h6,
+        .message-agent-welcome ul,
+        .message-agent-welcome ol,
+        .message-agent-welcome li {
+            margin: 0;
+            padding: 0;
+            text-align: left;
+        }
+        
+        /* Remove default list indentation */
+        .message ul,
+        .message ol,
+        .message-agent-welcome ul,
+        .message-agent-welcome ol {
+            padding-left: 0;
+            list-style-position: outside;
+        }
+        
+        /* Controlled vertical spacing between paragraphs */
+        .message p + p,
+        .message-agent-welcome p + p {
+            margin-top: var(--spacing-xs);
+        }
+        
+        /* Controlled spacing for headers */
+        .message h1 + p,
+        .message h2 + p,
+        .message h3 + p,
+        .message h4 + p,
+        .message h5 + p,
+        .message h6 + p,
+        .message p + h1,
+        .message p + h2,
+        .message p + h3,
+        .message p + h4,
+        .message p + h5,
+        .message p + h6,
+        .message-agent-welcome h1 + p,
+        .message-agent-welcome h2 + p,
+        .message-agent-welcome h3 + p,
+        .message-agent-welcome h4 + p,
+        .message-agent-welcome h5 + p,
+        .message-agent-welcome h6 + p,
+        .message-agent-welcome p + h1,
+        .message-agent-welcome p + h2,
+        .message-agent-welcome p + h3,
+        .message-agent-welcome p + h4,
+        .message-agent-welcome p + h5,
+        .message-agent-welcome p + h6 {
+            margin-top: var(--spacing-xs);
+        }
+        
+        /* Controlled spacing for list items */
+        .message li + li,
+        .message-agent-welcome li + li {
+            margin-top: var(--spacing-xs);
+        }
+        
+        /* Spacing before lists */
+        .message p + ul,
+        .message p + ol,
+        .message h1 + ul,
+        .message h2 + ul,
+        .message h3 + ul,
+        .message h4 + ul,
+        .message h5 + ul,
+        .message h6 + ul,
+        .message h1 + ol,
+        .message h2 + ol,
+        .message h3 + ol,
+        .message h4 + ol,
+        .message h5 + ol,
+        .message h6 + ol,
+        .message-agent-welcome p + ul,
+        .message-agent-welcome p + ol,
+        .message-agent-welcome h1 + ul,
+        .message-agent-welcome h2 + ul,
+        .message-agent-welcome h3 + ul,
+        .message-agent-welcome h4 + ul,
+        .message-agent-welcome h5 + ul,
+        .message-agent-welcome h6 + ul,
+        .message-agent-welcome h1 + ol,
+        .message-agent-welcome h2 + ol,
+        .message-agent-welcome h3 + ol,
+        .message-agent-welcome h4 + ol,
+        .message-agent-welcome h5 + ol,
+        .message-agent-welcome h6 + ol {
+            margin-top: var(--spacing-xs);
+        }
+        
+        /* Spacing after lists */
+        .message ul + p,
+        .message ol + p,
+        .message ul + h1,
+        .message ul + h2,
+        .message ul + h3,
+        .message ul + h4,
+        .message ul + h5,
+        .message ul + h6,
+        .message ol + h1,
+        .message ol + h2,
+        .message ol + h3,
+        .message ol + h4,
+        .message ol + h5,
+        .message ol + h6,
+        .message-agent-welcome ul + p,
+        .message-agent-welcome ol + p,
+        .message-agent-welcome ul + h1,
+        .message-agent-welcome ul + h2,
+        .message-agent-welcome ul + h3,
+        .message-agent-welcome ul + h4,
+        .message-agent-welcome ul + h5,
+        .message-agent-welcome ul + h6,
+        .message-agent-welcome ol + h1,
+        .message-agent-welcome ol + h2,
+        .message-agent-welcome ol + h3,
+        .message-agent-welcome ol + h4,
+        .message-agent-welcome ol + h5,
+        .message-agent-welcome ol + h6 {
+            margin-top: var(--spacing-xs);
         }
         
         @keyframes messageSlideIn {
@@ -205,23 +367,41 @@ def chat_ui():
         
         /* Input Area - Glassmorphic */
         .input-area {
-            padding: var(--spacing-lg);
-            background: var(--color-surface-elevated);
-            backdrop-filter: blur(var(--blur-lg)) saturate(180%);
-            -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(180%);
-            border-top: 0.5px solid var(--color-border);
+            padding: var(--spacing-md) var(--spacing-lg);
             display: flex;
-            gap: var(--spacing-md);
+            gap: var(--spacing-sm);
             align-items: center;
             position: sticky;
             bottom: 0;
             z-index: 100;
+            box-sizing: border-box;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            background: transparent;
+            border-top: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+        
+        .input-area::before {
+            content: '';
+            position: absolute;
+            left: calc(-50vw + 50%);
+            right: calc(-50vw + 50%);
+            top: 0;
+            bottom: 0;
+            background: var(--color-surface-elevated);
+            backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+            -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+            border-top: 0.5px solid var(--color-border);
             box-shadow: 0 -2px 12px var(--color-shadow);
+            z-index: -1;
         }
         
         .input-area input {
             flex: 1;
-            padding: var(--spacing-md) var(--spacing-lg);
+            padding: var(--spacing-sm) var(--spacing-md);
             background: rgba(255, 255, 255, 0.6);
             backdrop-filter: blur(var(--blur-sm));
             -webkit-backdrop-filter: blur(var(--blur-sm));
@@ -229,6 +409,7 @@ def chat_ui():
             border-radius: 20px;
             font-size: var(--font-size-base);
             font-family: var(--font-family);
+            line-height: 1.4;
             color: var(--color-text-primary);
             transition: all var(--transition-base);
             outline: none;
@@ -241,7 +422,7 @@ def chat_ui():
         .input-area input:focus {
             background: rgba(255, 255, 255, 0.8);
             border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
             transform: translateY(-1px);
         }
         
@@ -252,7 +433,7 @@ def chat_ui():
         
         /* Button - iOS Style */
         .input-area button {
-            padding: var(--spacing-md) var(--spacing-xl);
+            padding: var(--spacing-sm) var(--spacing-md);
             background: var(--color-primary);
             color: white;
             border: none;
@@ -260,6 +441,7 @@ def chat_ui():
             font-size: var(--font-size-base);
             font-weight: var(--font-weight-medium);
             font-family: var(--font-family);
+            line-height: 1.4;
             cursor: pointer;
             transition: all var(--transition-base);
             box-shadow: var(--shadow-sm);
@@ -286,27 +468,167 @@ def chat_ui():
         /* Responsive */
         @media (max-width: 768px) {
             .header {
-                padding: var(--spacing-lg) var(--spacing-md);
+                padding: var(--spacing-sm) var(--spacing-md);
             }
             
             .header h1 {
                 font-size: var(--font-size-xl);
+                line-height: 1.2;
             }
             
             .messages {
-                padding: var(--spacing-lg) var(--spacing-md);
+                padding: var(--spacing-xs) var(--spacing-md);
             }
             
             .message {
                 max-width: 85%;
                 font-size: var(--font-size-sm);
+                line-height: 1.4;
             }
             
             .input-area {
-                padding: var(--spacing-md);
+                padding: var(--spacing-sm) var(--spacing-md);
             }
         }
         
+        /* Action Items (HubSpot Approval) */
+        .action-items {
+            margin-top: var(--spacing-sm);
+        }
+
+        .action-items strong {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-weight: var(--font-weight-semibold);
+            line-height: 1.4;
+            text-align: left;
+        }
+
+        .action-items-list {
+            list-style: none;
+            padding: var(--spacing-md);
+            margin: var(--spacing-sm) var(--spacing-sm);
+        }
+
+        .action-item {
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-xs);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(var(--blur-sm));
+            -webkit-backdrop-filter: blur(var(--blur-sm));
+            border: 0.5px solid var(--color-border);
+            font-size: var(--font-size-sm);
+            line-height: 1.8;
+            color: var(--color-text-primary);
+        }
+        
+        .action-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .action-button {
+            align-self: flex-start;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: 16px;
+            border: none;
+            font-family: var(--font-family);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.4;
+            cursor: pointer;
+            background: rgba(255, 149, 0, 0.9); /* vibrant orange */
+            color: white;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-base);
+            margin-top: var(--spacing-xs);
+        }
+
+        .action-button:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .action-button:active {
+            transform: scale(0.97);
+        }
+
+        /* Welcome Message Styling */
+        .message-agent-welcome {
+            padding: var(--spacing-xs) var(--spacing-md);
+            border-radius: 20px;
+            max-width: 65%;
+            align-self: flex-start;
+            background: var(--color-surface);
+            backdrop-filter: blur(var(--blur-md)) saturate(180%);
+            -webkit-backdrop-filter: blur(var(--blur-md)) saturate(180%);
+            color: var(--color-text-primary);
+            border-bottom-left-radius: 6px;
+            box-shadow: var(--shadow-sm);
+            border: 0.5px solid var(--color-border);
+            font-size: var(--font-size-base);
+            line-height: 1.4;
+            word-wrap: break-word;
+            white-space: pre-line;
+        }
+
+        .welcome-text {
+            font-size: var(--font-size-base);
+            line-height: 1.4;
+            font-weight: var(--font-weight-regular);
+            color: var(--color-text-primary);
+            margin: 0;
+            padding: 0;
+            max-width: 100%;
+            text-align: left;
+        }
+
+        .welcome-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+            margin-top: var(--spacing-xs);
+        }
+
+        .quick-start-button {
+            width: 100%;
+            text-align: center;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: 12px;
+            border: 0.5px solid rgba(255, 149, 0, 0.3);
+            font-family: var(--font-family);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.4;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(var(--blur-sm));
+            -webkit-backdrop-filter: blur(var(--blur-sm));
+            color: var(--color-text-primary);
+            box-shadow: 0 1px 3px var(--color-shadow), 0 0 0 0.5px rgba(255, 149, 0, 0.1);
+            transition: all var(--transition-base);
+            margin: 0;
+        }
+
+        .quick-start-button:hover {
+            background: rgba(255, 255, 255, 0.7);
+            transform: translateY(-1px);
+            border-color: rgba(255, 149, 0, 0.6);
+            box-shadow: 0 4px 12px var(--color-shadow), 0 0 0 1px rgba(255, 149, 0, 0.2);
+        }
+
+        .quick-start-button:focus {
+            outline: none;
+            border-color: rgba(255, 149, 0, 0.6);
+            box-shadow: 0 4px 12px var(--color-shadow), 0 0 0 1px rgba(255, 149, 0, 0.2);
+        }
+
+        .quick-start-button:active {
+            transform: scale(0.97) translateY(0);
+            border-color: rgba(255, 149, 0, 0.5);
+            box-shadow: 0 1px 3px var(--color-shadow), 0 0 0 0.5px rgba(255, 149, 0, 0.15);
+        }
+
         /* Loading Animation */
         @keyframes pulse {
             0%, 100% {
@@ -325,11 +647,16 @@ def chat_ui():
 <body>
     <div class="container">
         <div class="header">
-            <h1>Meeting Intelligence</h1>
+            <h1>Meeting Assistant</h1>
         </div>
         <div class="messages" id="messages">
-            <div class="message agent">
-                Hello! I can help you summarize meetings. Try asking: "Summarize my last meeting with [client name]"
+            <div class="message-agent-welcome">
+                <p class="welcome-text">Welcome! I can help you summarize meetings, brief you on upcoming meetings, and generate follow-up emails.</p>
+                <p class="welcome-text">To get started try something like...</p>
+                <div class="welcome-buttons">
+                    <button class="quick-start-button" onclick="prefillInput('Summarize my last meeting')">Summarize my last meeting</button>
+                    <button class="quick-start-button" onclick="prefillInput('Brief me on my next meeting')">Brief me on my next meeting</button>
+                </div>
             </div>
         </div>
         <div class="input-area">
@@ -498,19 +825,18 @@ def chat_ui():
         
         function renderHubSpotApproval(tasks) {
             const container = document.createElement('div');
-            container.className = 'message agent';
-            container.style.marginTop = '8px';
+            container.className = 'message agent action-items';
 
             const title = document.createElement('strong');
             title.textContent = `I found ${tasks.length} action item(s).`;
             container.appendChild(title);
 
             const list = document.createElement('ul');
-            list.style.marginTop = '8px';
-            list.style.paddingLeft = '18px';
+            list.className = 'action-items-list';
 
             tasks.forEach(task => {
                 const li = document.createElement('li');
+                li.className = 'action-item';
                 li.textContent = task.text;
                 list.appendChild(li);
             });
@@ -518,8 +844,8 @@ def chat_ui():
             container.appendChild(list);
 
             const button = document.createElement('button');
+            button.className = 'action-button';
             button.textContent = 'Add to HubSpot';
-            button.style.marginTop = '12px';
 
             button.onclick = () => {
                 sendApprovalMessage();
@@ -544,6 +870,13 @@ def chat_ui():
             } else {
                 element.remove();
             }
+        }
+        
+        function prefillInput(text) {
+            messageInput.value = text;
+            messageInput.focus();
+            // Scroll input into view if needed
+            messageInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
         
         // Focus input on load
