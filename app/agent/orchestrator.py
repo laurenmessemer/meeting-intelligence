@@ -1,6 +1,6 @@
 """Agent orchestrator - coordinates all operations, owns control flow."""
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime, date
 from dateutil import parser
 import uuid
@@ -90,6 +90,31 @@ class Orchestrator:
 
         return candidate
 
+
+    def _has_actionable_date(self, date_text: Optional[str]) -> bool:
+        if not date_text:
+            return False
+
+        date_text = date_text.strip().lower()
+
+        NON_DATE_KEYWORDS = {
+            "last",
+            "recent",
+            "recently",
+            "latest",
+            "most recent",
+            "last meeting",
+            "previous",
+            "previous meeting",
+        }
+
+        for phrase in NON_DATE_KEYWORDS:
+            if phrase in date_text:
+                return False
+
+        return True
+
+
     # -------------------------------------------------
     # Public entry point
     # -------------------------------------------------
@@ -145,6 +170,7 @@ class Orchestrator:
     # Meeting Summary Workflow
     # -------------------------------------------------
 
+
     def _execute_meeting_summary_workflow(
         self, entities: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -152,7 +178,9 @@ class Orchestrator:
         trace_id = str(uuid.uuid4())[:8]
 
         client_name = entities.get("client_name")
-        date_str = entities.get("date")
+        raw_date_text = entities.get("date_text")
+        date_str = raw_date_text if self._has_actionable_date(raw_date_text) else None
+
         calendar_event = None
         existing_meeting = None 
 
@@ -356,15 +384,23 @@ class Orchestrator:
             f"{entry.key}: {entry.value}" for entry in memory_entries[:5]
         )
 
+        # -------------------------------------------------
+        # Pre-summary attendee context (SAFE, NON-INFERRED)
+        # -------------------------------------------------
+
+
         summary_result = summarize_meeting(
             transcript=transcript or meeting.transcript,
             meeting_metadata={
                 "date": calendar_event.get("start"),
-                "attendees": calendar_event.get("attendees", []),
+                "attendees": [],
                 "client_name": client_name,
             },
             memory_context=memory_context,
         )
+
+
+
 
         self.memory_repo.update_meeting(
             meeting.id,
@@ -404,9 +440,14 @@ class Orchestrator:
         # Response
         # -------------------------------------------------
 
-        response_message = f"""**Meeting Summary for {client_name}**
+        meeting_date_str = meeting.meeting_date.strftime("%B %d, %Y")
+
+        response_message = f"""**Meeting Summary**
+        **Client:** {client_name}
+        **Date:** {meeting_date_str}
 
         {summary_result['summary']}
+
 
         **Decisions:**
         {chr(10).join(f"- {d}" for d in summary_result.get('decisions', [])) or "None"}

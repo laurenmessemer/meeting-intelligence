@@ -5,12 +5,19 @@ Analyze the user's message and determine their intent. Extract relevant entities
 
 Respond in JSON format:
 {
-  "intent": "summarize_meeting" | "generate_followup" | "meeting_brief" | "approve_hubspot_tasks" | "other",
+  "intent": "summarize_meeting" 
+  | "generate_followup" 
+  | "meeting_brief" 
+  | "approve_hubspot_tasks"
+  | "confirm_attendee_alias"
+  | "other",
   "confidence": 0.0-1.0,
   "entities": {
     "client_name": "string or null",
     "date_text": "string or null (raw user phrase, e.g. 'December 12'). Convert natural language dates.",
-    "task_selection": "array of integers or null"
+    "task_selection": "array of integers or null",
+    "email": "string or null",
+    "preferred_name": "string or null"
   }
 }
 
@@ -19,6 +26,20 @@ Known intents:
 - generate_followup: User wants a follow-up email for the most recent meeting
 - meeting_brief: User wants preparation notes for an upcoming meeting
 - approve_hubspot_tasks: User confirms they want to create HubSpot tasks
+- confirm_attendee_alias:
+  User is confirming or correcting an attendee’s name.
+  This often follows a clarification question from the agent.
+
+  Example of confirm_attendee_alias:
+  - "Yes"
+  - "Yes, that's Charlie"
+  - "Correct — Charlie is charmur@gmail.com"
+  - "Please remember that Charlie is charmur@gmail.com"
+
+  For confirm_attendee_alias:
+  - Extract email if present
+  - Extract preferred_name if present
+  - If the user only says "Yes" or "Correct", return null for both
 
 Examples of approve_hubspot_tasks:
 - "Yes, add those to HubSpot"

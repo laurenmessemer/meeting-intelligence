@@ -161,6 +161,8 @@ class MemoryRepo:
         return self.session.query(MemoryEntry).filter(
             MemoryEntry.meeting_id.in_(meeting_ids)
         ).all()
+
+
     
     # Commitment operations
     def create_commitment(self, commitment_data: CommitmentCreate) -> Commitment:
