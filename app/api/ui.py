@@ -853,12 +853,33 @@ def chat_ui():
             const list = document.createElement('ul');
             list.className = 'action-items-list';
 
-            tasks.forEach(task => {
-                const li = document.createElement('li');
-                li.className = 'action-item';
-                li.textContent = task.text;
-                list.appendChild(li);
+            tasks.forEach((task, index) => {
+            const li = document.createElement('li');
+            li.className = 'action-item';
+            li.style.display = 'flex';
+            li.style.alignItems = 'flex-start';
+            li.style.gap = '10px';
+
+            const id = `task_cb_${index}`;
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = id;
+            checkbox.dataset.index = index;
+            checkbox.style.marginTop = '4px';
+
+            const label = document.createElement('label');
+            label.htmlFor = id;
+            label.textContent = task.text;
+            label.style.cursor = 'pointer';
+            label.style.flex = '1';
+
+            li.appendChild(checkbox);
+            li.appendChild(label);
+            list.appendChild(li);
             });
+
+
 
             container.appendChild(list);
 
@@ -866,9 +887,21 @@ def chat_ui():
             button.className = 'action-button';
             button.textContent = 'Add to HubSpot';
 
-            button.onclick = () => {
-                sendApprovalMessage();
-            };
+        button.onclick = async () => {
+            const checked = container.querySelectorAll('input[type="checkbox"]:checked');
+            const approvedIndexes = Array.from(checked).map(cb => parseInt(cb.dataset.index, 10));
+
+            console.log("UI approvedIndexes:", approvedIndexes);
+
+            if (approvedIndexes.length === 0) {
+                alert("Select at least one task to approve.");
+                return;
+            }
+
+            await sendApprovalPayload(approvedIndexes);
+        };
+
+
 
             container.appendChild(button);
             messagesDiv.appendChild(container);
@@ -897,6 +930,34 @@ def chat_ui():
             // Scroll input into view if needed
             messageInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
+
+        async function sendApprovalPayload(approvedIndexes) {
+            console.log("Sending approval payload:", approvedIndexes);
+
+            const loadingId = addMessage('Adding selected tasks to HubSpot...', 'agent', 'loading');
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        intent: "approve_hubspot_tasks",
+                        entities: { approved_task_indexes: approvedIndexes }
+                    })
+                });
+
+                if (!response.ok) throw new Error('Server error');
+
+                const data = await response.json();
+                removeMessage(loadingId);
+                addMessage(data.message, 'agent');
+
+            } catch (err) {
+                removeMessage(loadingId);
+                addMessage('Failed to approve HubSpot tasks.', 'agent');
+            }
+        }
+
         
         // Focus input on load
         messageInput.focus();

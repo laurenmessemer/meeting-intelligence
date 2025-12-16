@@ -153,9 +153,12 @@ def create_task(
                 f"{action_item_text}"
             ),
             "hs_task_status": "NOT_STARTED",
-            "hs_timestamp": int(due_date.timestamp() * 1000),  # HubSpot expects milliseconds
         }
     }
+
+    if due_date:
+        payload["properties"]["hs_timestamp"] = int(due_date.timestamp() * 1000)
+
     
 
     try:

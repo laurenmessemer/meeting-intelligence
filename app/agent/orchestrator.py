@@ -7,7 +7,6 @@ import uuid
 
 from app.agent.intents import recognize_intent
 from app.agent.workflows import MEETING_SUMMARY_WORKFLOW
-from app.agent.commitments import create_commitments_from_action_items
 
 from app.memory.repo import MemoryRepo
 from app.memory.schemas import MeetingCreate, MeetingUpdate, MemoryEntryCreate
@@ -119,10 +118,21 @@ class Orchestrator:
     # Public entry point
     # -------------------------------------------------
 
-    def process_message(self, user_message: str) -> Dict[str, Any]:
-        intent_result = recognize_intent(user_message)
-        intent = intent_result.get("intent")
-        entities = intent_result.get("entities", {})
+    def process_message(
+    self,
+    user_message: str,
+    intent_override: Optional[str] = None,
+    entities_override: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+        if intent_override:
+            intent = intent_override
+            entities = entities_override or {}
+            logger.info(f"[INTENT OVERRIDE] intent={intent} entities={entities}")
+        else:
+            intent_result = recognize_intent(user_message)
+            intent = intent_result.get("intent")
+            entities = intent_result.get("entities", {})
+
 
         workflow = None
 
@@ -421,21 +431,6 @@ class Orchestrator:
                 )
             )
 
-        commitments = []
-        hubspot_errors = []
-
-        if summary_result.get("action_items"):
-            try:
-                commitments = create_commitments_from_action_items(
-                    summary_result["action_items"],
-                    meeting.id,
-                    self.memory_repo,
-                )
-            except HubSpotIntegrationError as e:
-                logger.warning("HubSpot integration failed during commitment creation", exc_info=e)
-                hubspot_errors.append(str(e))
-
-
         # -------------------------------------------------
         # Response
         # -------------------------------------------------
@@ -566,6 +561,23 @@ class Orchestrator:
             },
         }
 
+    def create_selected_hubspot_tasks(*, tasks, meeting_id, memory_repo):
+        created = []
+        failed = []
+
+        for task in tasks:
+            try:
+                # existing HubSpot task creation logic
+                created.append(task)
+            except Exception as e:
+                failed.append({"task": task, "error": str(e)})
+
+        return {
+            "created": created,
+            "failed": failed,
+        }
+
+
     def _execute_hubspot_approval_workflow(self, entities):
         meeting = self.memory_repo.get_active_meeting()
 
@@ -575,20 +587,56 @@ class Orchestrator:
                 "metadata": {"error": "no_active_meeting"},
             }
 
-        from app.tools.hubspot_tasks import create_approved_hubspot_tasks
+        approved_indexes = entities.get("approved_task_indexes")
 
-        result = create_approved_hubspot_tasks(
+        # 🔒 HARD REQUIREMENT: explicit approval
+        if not approved_indexes:
+            return {
+                "message": "No tasks were selected for approval.",
+                "metadata": {"error": "no_tasks_selected"},
+            }
+
+        if not meeting.action_items:
+            return {
+                "message": "There are no pending tasks to approve.",
+                "metadata": {"status": "no_pending_tasks"},
+            }
+
+        # 🧠 Filter to ONLY approved tasks
+        approved_tasks = [
+            task
+            for idx, task in enumerate(meeting.action_items)
+            if idx in approved_indexes
+        ]
+
+        if not approved_tasks:
+            return {
+                "message": "Selected tasks do not match pending tasks.",
+                "metadata": {"error": "task_mismatch"},
+            }
+
+        from app.tools.hubspot_tasks import create_selected_hubspot_tasks
+
+        result = create_selected_hubspot_tasks(
+            tasks=approved_tasks,
             meeting_id=meeting.id,
             memory_repo=self.memory_repo,
         )
 
-        if not result["created"] and not result["failed"]:
-            return {
-                "message": "There are no pending HubSpot tasks to approve.",
-                "metadata": {"status": "no_pending_tasks"},
-            }
+        # 🔥 Remove only approved tasks from meeting
+        remaining_tasks = [
+            task
+            for idx, task in enumerate(meeting.action_items)
+            if idx not in approved_indexes
+        ]
+
+        self.memory_repo.update_meeting(
+            meeting.id,
+            MeetingUpdate(action_items=remaining_tasks),
+        )
 
         return {
-            "message": f"Added {len(result['created'])} tasks to HubSpot.",
+            "message": f"Added {len(result.get('created', []))} tasks to HubSpot.",
             "metadata": result,
         }
+

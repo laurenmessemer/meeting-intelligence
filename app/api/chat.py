@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.agent.orchestrator import Orchestrator
 from app.memory.repo import MemoryRepo
+from typing import Optional
 
 router = APIRouter()
 
@@ -19,8 +20,10 @@ def get_db():
 
 
 class ChatRequest(BaseModel):
-    """Request model for chat endpoint."""
-    message: str
+    message: Optional[str] = None
+    intent: Optional[str] = None
+    entities: Optional[dict] = None
+
 
 
 class ChatResponse(BaseModel):
@@ -37,15 +40,24 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     Receives user message, calls orchestrator, returns response.
     No reasoning. No orchestration logic.
     """
-    if not request.message or not request.message.strip():
-        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if not request.message and not request.intent:
+        raise HTTPException(
+            status_code=400,
+            detail="Either message or intent must be provided"
+        )
+
     
     # Create orchestrator with memory repo
     memory_repo = MemoryRepo(db)
     orchestrator = Orchestrator(memory_repo)
     
     # Process message
-    result = orchestrator.process_message(request.message)
+    result = orchestrator.process_message(
+        user_message=request.message or "",
+        intent_override=request.intent,
+        entities_override=request.entities,
+    )
+
     
     return ChatResponse(
         message=result.get("message", ""),
