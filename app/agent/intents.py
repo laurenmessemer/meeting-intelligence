@@ -64,10 +64,14 @@ def recognize_intent(user_message: str) -> Dict[str, Any]:
         print(f"DIAGNOSTIC: Parsed result: {result}")
         print(f"DIAGNOSTIC: entities: {result.get('entities', {})}")
         print(f"DIAGNOSTIC: entities['date']: {repr(result.get('entities', {}).get('date'))}")
+
+        entities = result.get("entities", {}) or {}
+        entities["_raw_user_text"] = user_message
+
         return {
             "intent": result.get("intent", "other"),
             "confidence": float(result.get("confidence", 0.0)),
-            "entities": result.get("entities", {})
+            "entities": entities,
         }
     except (json.JSONDecodeError, ValueError, KeyError) as e:
         print(f"DIAGNOSTIC: JSON parsing failed: {type(e).__name__}: {e}")

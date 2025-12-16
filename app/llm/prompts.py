@@ -9,7 +9,7 @@ Respond in JSON format:
   "confidence": 0.0-1.0,
   "entities": {
     "client_name": "string or null",
-    "date": "ISO 8601 date in YYYY-MM-DD format, or null. Convert natural language dates.",
+    "date_text": "string or null (raw user phrase, e.g. 'December 12'). Convert natural language dates.",
     "task_selection": "array of integers or null"
   }
 }

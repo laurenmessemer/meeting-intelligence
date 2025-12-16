@@ -352,23 +352,33 @@ def get_meeting_by_client_and_date(
         creator_match = client_lower in creator
         attendee_match = any(client_lower in att for att in attendees)
         
-        matches = summary_match or description_match
-        
-        print(f"\nEvent #{idx} ({event.get('summary', '')}):")
-        print(f"  summary match: {summary_match} (summary: '{summary}')")
-        print(f"  description match: {description_match} (description: '{description[:50]}...')")
-        print(f"  location match: {location_match}")
-        print(f"  organizer match: {organizer_match} (organizer: '{organizer}')")
-        print(f"  creator match: {creator_match} (creator: '{creator}')")
-        print(f"  attendee match: {attendee_match} (attendees: {attendees})")
-        print(f"  OVERALL MATCH: {matches}")
-        
+        event_start_str = event.get("start", {}).get("dateTime") or event.get("start", {}).get("date")
+
+        try:
+            event_date = _to_utc_datetime(event_start_str).date()
+        except Exception:
+            continue
+
+        # HARD REQUIREMENT: event must be on the requested date
+        if event_date != target_date:
+            print("  ✗ Date mismatch, skipping")
+            continue
+
+        # SECONDARY: client match
+        matches = (
+            client_lower in summary
+            or client_lower in description
+        )
+
+        print(f"  date match: YES")
+        print(f"  client match: {matches}")
+
         if matches:
-            print(f"  ✓ MATCH FOUND - Returning this event")
+            print(f"  ✓ DATE + CLIENT MATCH FOUND - Returning this event")
             return {
                 "id": event.get("id"),
                 "summary": event.get("summary", ""),
-                "start": event.get("start", {}).get("dateTime") or event.get("start", {}).get("date"),
+                "start": event_start_str,
                 "end": event.get("end", {}).get("dateTime") or event.get("end", {}).get("date"),
                 "description": event.get("description", ""),
                 "attendees": [a.get("email") for a in event.get("attendees", [])],
@@ -378,6 +388,7 @@ def get_meeting_by_client_and_date(
                     .get("entryPoints", [{}])[0]
                     .get("uri", "")
             }
+
 
     return None
 

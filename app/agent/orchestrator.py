@@ -55,20 +55,40 @@ class Orchestrator:
 
     def _parse_target_date(self, date_str: str) -> date:
         """
-        Parse ISO or natural-language dates into a date object.
-        If no year is specified and the date is in the past,
-        assume the next future occurrence.
+        Parse natural-language dates into a concrete date.
+        If no year is specified, resolve to the most recent
+        occurrence on or before today.
         """
-        parsed = parser.parse(date_str, default=datetime.utcnow())
+        today = datetime.utcnow().date()
+
+        # First: detect explicit year using regex (not substring)
+        year_match = re.search(r"\b(19|20)\d{2}\b", date_str)
+        year_specified = bool(year_match)
+
+        # Parse without forcing a year
+        parsed = parser.parse(date_str, fuzzy=True)
         parsed_date = parsed.date()
 
-        today = datetime.utcnow().date()
-        year_specified = "20" in date_str
+        # Only trust year if user explicitly typed a 4-digit year
+        explicit_year = re.search(r"\b(19|20)\d{2}\b", date_str)
 
-        if not year_specified and parsed_date < today:
-            parsed_date = date(parsed_date.year + 1, parsed_date.month, parsed_date.day)
+        if not explicit_year:
+            candidate = date(today.year, parsed_date.month, parsed_date.day)
+            if candidate > today:
+                candidate = date(today.year - 1, parsed_date.month, parsed_date.day)
+            return candidate
 
-        return parsed_date
+        if year_specified:
+            return parsed_date
+
+        # No year → assume current year first
+        candidate = date(today.year, parsed_date.month, parsed_date.day)
+
+        # If that date is in the future, roll back one year
+        if candidate > today:
+            candidate = date(today.year - 1, parsed_date.month, parsed_date.day)
+
+        return candidate
 
     # -------------------------------------------------
     # Public entry point

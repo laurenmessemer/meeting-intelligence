@@ -15,6 +15,8 @@ def chat_ui():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meeting Assistant</title>
+    <link rel="icon" href="/static/meeting_assistant_logo_br.png" type="image/png">
+    <link rel="apple-touch-icon" href="/static/meeting_assistant_logo_br.png">
     <style>
         /* Design Tokens */
         :root {
@@ -85,7 +87,7 @@ def chat_ui():
         }
         
         .container {
-            max-width: 900px;
+            max-width: none;
             margin: 0 auto;
             width: 100%;
             height: 100%;
@@ -94,6 +96,14 @@ def chat_ui():
             position: relative;
         }
         
+        .header-logo {
+            height: 35px; /* matches previous H1 visual weight */
+            width: auto;
+            display: inline-block;
+            object-fit: contain;
+            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.08));
+        }
+
         /* Glassmorphic Header */
         .header {
             padding: var(--spacing-md) var(--spacing-lg);
@@ -101,7 +111,7 @@ def chat_ui():
             position: sticky;
             top: 0;
             z-index: 100;
-            max-width: 900px;
+            max-width: none;
             margin-left: auto;
             margin-right: auto;
             background: transparent;
@@ -166,7 +176,7 @@ def chat_ui():
         .message {
             padding: var(--spacing-sm) var(--spacing-md);
             border-radius: 20px;
-            max-width: 75%;
+            max-width: 65%;
             word-wrap: break-word;
             white-space: pre-line;
             font-size: var(--font-size-base);
@@ -365,7 +375,7 @@ def chat_ui():
             opacity: 0.7;
         }
         
-        /* Input Area - Glassmorphic */
+        /* Input Area */
         .input-area {
             padding: var(--spacing-md) var(--spacing-lg);
             display: flex;
@@ -375,7 +385,8 @@ def chat_ui():
             bottom: 0;
             z-index: 100;
             box-sizing: border-box;
-            max-width: 900px;
+            width: 100%;
+            max-width: clamp(700px, 90vw, 1400px);
             margin-left: auto;
             margin-right: auto;
             background: transparent;
@@ -431,7 +442,7 @@ def chat_ui():
             cursor: not-allowed;
         }
         
-        /* Button - iOS Style */
+        /* Button */
         .input-area button {
             padding: var(--spacing-sm) var(--spacing-md);
             background: var(--color-primary);
@@ -467,6 +478,10 @@ def chat_ui():
         
         /* Responsive */
         @media (max-width: 768px) {
+
+            .header-logo {
+                height: 28px;
+            }
             .header {
                 padding: var(--spacing-sm) var(--spacing-md);
             }
@@ -487,7 +502,8 @@ def chat_ui():
             }
             
             .input-area {
-                padding: var(--spacing-sm) var(--spacing-md);
+                max-width: 100%;
+                padding: var(--spacing-sm) var(--spacing-sm);
             }
         }
         
@@ -647,15 +663,19 @@ def chat_ui():
 <body>
     <div class="container">
         <div class="header">
-            <h1>Meeting Assistant</h1>
+            <img
+                src="/static/meeting_assistant_logo_br.png"
+                alt="Meeting Assistant"
+                class="header-logo"
+            />
         </div>
         <div class="messages" id="messages">
             <div class="message-agent-welcome">
                 <p class="welcome-text">Welcome! I can help you summarize meetings, brief you on upcoming meetings, and generate follow-up emails.</p>
                 <p class="welcome-text">To get started try something like...</p>
                 <div class="welcome-buttons">
-                    <button class="quick-start-button" onclick="prefillInput('Summarize my last meeting')">Summarize my last meeting</button>
-                    <button class="quick-start-button" onclick="prefillInput('Brief me on my next meeting')">Brief me on my next meeting</button>
+                    <button class="quick-start-button" onclick="sendMessage('Summarize my last meeting')">Summarize my last meeting</button>
+                    <button class="quick-start-button" onclick="sendMessage('Brief me on my next meeting')">Brief me on my next meeting</button>
                 </div>
             </div>
         </div>
@@ -663,7 +683,6 @@ def chat_ui():
             <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
             <button id="sendButton" onclick="sendMessage()">Send</button>
         </div>
-    </div>
     <script>
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');

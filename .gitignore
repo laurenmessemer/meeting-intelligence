@@ -208,3 +208,6 @@ __marimo__/
 
 # Secrets
 token.json
+
+# Test files
+test/

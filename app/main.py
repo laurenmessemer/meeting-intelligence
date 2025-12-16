@@ -1,8 +1,12 @@
 """FastAPI application entry point."""
 from fastapi import FastAPI
 from app.api import chat, ui
+from fastapi.staticfiles import StaticFiles
+
 
 app = FastAPI(title="Meeting Intelligence Agent", version="1.0.0")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # Include routers
 app.include_router(chat.router)
