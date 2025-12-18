@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, date
 from dateutil import parser
 import uuid
+import re 
 
 from app.agent.intents import recognize_intent
 from app.agent.workflows import MEETING_SUMMARY_WORKFLOW
@@ -402,7 +403,7 @@ class Orchestrator:
         summary_result = summarize_meeting(
             transcript=transcript or meeting.transcript,
             meeting_metadata={
-                "date": calendar_event.get("start"),
+                "date": meeting.meeting_date.isoformat(),
                 "attendees": [],
                 "client_name": client_name,
             },

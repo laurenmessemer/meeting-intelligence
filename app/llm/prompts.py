@@ -9,7 +9,6 @@ Respond in JSON format:
   | "generate_followup" 
   | "meeting_brief" 
   | "approve_hubspot_tasks"
-  | "confirm_attendee_alias"
   | "other",
   "confidence": 0.0-1.0,
   "entities": {
@@ -21,25 +20,24 @@ Respond in JSON format:
   }
 }
 
+IMPORTANT:
+- The meeting date provided in metadata is the ONLY authoritative date.
+- Do NOT infer, assume, or substitute dates based on memory or transcript content.
+- If other meetings are mentioned, describe them WITHOUT dates unless explicitly stated in the transcript.
+- Never invent or normalize dates.
+
+
+Return ONLY valid JSON.
+Do not include markdown code fences (```json).
+Do not include explanatory text before or after the JSON object.
+The response must be parseable by json.loads().
+
 Known intents:
 - summarize_meeting: User wants to summarize a meeting with a client
 - generate_followup: User wants a follow-up email for the most recent meeting
 - meeting_brief: User wants preparation notes for an upcoming meeting
 - approve_hubspot_tasks: User confirms they want to create HubSpot tasks
-- confirm_attendee_alias:
-  User is confirming or correcting an attendee’s name.
-  This often follows a clarification question from the agent.
 
-  Example of confirm_attendee_alias:
-  - "Yes"
-  - "Yes, that's Charlie"
-  - "Correct — Charlie is charmur@gmail.com"
-  - "Please remember that Charlie is charmur@gmail.com"
-
-  For confirm_attendee_alias:
-  - Extract email if present
-  - Extract preferred_name if present
-  - If the user only says "Yes" or "Correct", return null for both
 
 Examples of approve_hubspot_tasks:
 - "Yes, add those to HubSpot"
@@ -53,7 +51,6 @@ task_selection:
   return a list of indices (0-based).
 - Otherwise return null.
 
-Return ONLY raw JSON. Do not include markdown, code fences, or explanation.
 """
 
 INTENT_RECOGNITION_USER = """User message: {user_message}
