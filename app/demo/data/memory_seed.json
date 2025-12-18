@@ -1,0 +1,57 @@
+{
+  "client_name": "MTCA",
+  "meeting_date": "2025-12-12T09:00:00-06:00",
+  "calendar_event_id": "demo_mtca_event_001",
+  "memory_entries": [
+    {
+      "key": "client_preferences",
+      "value": "MTCA prioritizes student autonomy supported by clear structure rather than rigid enforcement. Tools should guide behavior without blocking progress or creating anxiety for students.",
+      "metadata": { "client": "MTCA", "source": "working_session" }
+    },
+    {
+      "key": "client_preferences",
+      "value": "Coach visibility should focus on patterns and risks, not day-to-day monitoring of student activity. Oversight should feel supportive, not supervisory.",
+      "metadata": { "client": "MTCA", "source": "working_session" }
+    },
+    {
+      "key": "decision",
+      "value": "The College List feature will use a Kanban-style layout to visually represent progress without enforcing a strict sequence of steps.",
+      "metadata": { "client": "MTCA", "approved": true }
+    },
+    {
+      "key": "decision",
+      "value": "Students will not be blocked from skipping stages in the College List, but the UI will encourage best practices through defaults and soft guidance.",
+      "metadata": { "client": "MTCA", "approved": true }
+    },
+    {
+      "key": "decision",
+      "value": "All dates entered in the College List are considered student-reported goals and will not be treated as authoritative audition deadlines.",
+      "metadata": { "client": "MTCA", "approved": true }
+    },
+    {
+      "key": "constraint",
+      "value": "The College List tool should not replace or diminish the role of coaches like Amy; it must coexist with and enhance existing advising workflows.",
+      "metadata": { "client": "MTCA", "type": "organizational" }
+    },
+    {
+      "key": "constraint",
+      "value": "Version one of the College List should avoid predictive analytics or acceptance modeling to prevent unnecessary pressure or false certainty for students.",
+      "metadata": { "client": "MTCA", "type": "product_scope" }
+    },
+    {
+      "key": "pattern",
+      "value": "Students often track college research informally in spreadsheets or notes before using formal tools, leading to fragmented or outdated information.",
+      "metadata": { "client": "MTCA", "confidence": "high" }
+    },
+    {
+      "key": "pattern",
+      "value": "Overly technical language in student-facing interfaces reduces engagement and increases confusion, even when functionality is sound.",
+      "metadata": { "client": "MTCA", "confidence": "medium" }
+    },
+    {
+      "key": "note",
+      "value": "Terminology such as 'Prescreen' may need to be revisited for student-facing views to ensure clarity and emotional accessibility.",
+      "metadata": { "client": "MTCA" }
+    }
+  ]
+}

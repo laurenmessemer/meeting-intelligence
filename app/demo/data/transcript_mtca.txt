@@ -1,0 +1,214 @@
+Date: December 12, 2025
+Attendees:
+
+Lauren Messemer (Mesmerize Software Studio)
+
+Charlie Murphy (Executive Director, MTCA)
+
+Kim (MTCA Operations)
+
+0:00–5:00 — Opening & Framing
+
+Charlie:
+Alright, let’s jump in. Thanks again, Lauren. I think today is really about pressure-testing what this system could be, not just aesthetically, but functionally — how it supports students, coaches, and us operationally.
+
+Lauren:
+Absolutely. Today is less about pixel-perfect design and more about system structure, data flow, and ownership. We’re mapping how information lives, moves, and stays accurate over time.
+
+Kim:
+That’s helpful. Especially since our biggest pain point right now is information living in too many places — spreadsheets, emails, third-party tools.
+
+5:00–12:00 — Core Problem Statement
+
+Lauren:
+Let me restate the core problem as I understand it. Right now, students are tracking their college audition process across multiple disconnected tools — College Planner Pro, Google Docs, notes apps — while MTCA staff is separately tracking advising context. That creates duplication, drift, and confusion.
+
+Charlie:
+Exactly. And worse, it undermines trust in the system. Students don’t know which source of truth to rely on.
+
+Kim:
+And from our side, we’re constantly re-answering questions because we don’t have visibility into what a student has already researched or completed.
+
+Lauren:
+So the system we’re proposing becomes a single source of truth, but with clear ownership boundaries — what’s student-reported versus MTCA-provided.
+
+12:00–20:00 — College List Architecture
+
+Lauren:
+The College List is the backbone. Structurally, it’s a Kanban-style board where each card represents a school + program combination.
+
+Each card has:
+
+Program metadata (degree type, audition requirements)
+
+Deadlines
+
+Status
+
+Tasks (both auto-generated and user-added)
+
+Charlie:
+One concern I have — what about students applying to multiple programs at the same school?
+
+Lauren:
+Great question. Architecturally, we treat each program application as its own entity, even if the school overlaps. That avoids edge-cases where deadlines or requirements diverge.
+
+Kim:
+So Juilliard MT and Juilliard Acting would be two cards?
+
+Lauren:
+Exactly. Same parent institution, separate application objects.
+
+20:00–28:00 — Task System & Ownership
+
+Lauren:
+Tasks fall into two categories:
+
+MTCA-scaffolded tasks — required steps we know every student must complete
+
+Student-created tasks — personal reminders or prep items
+
+Students can opt out of MTCA scaffolding if appropriate, but by default it’s on.
+
+Charlie:
+That’s important. I don’t want this to feel like micromanagement, but structure helps most students.
+
+Kim:
+How do we prevent students from deleting required tasks?
+
+Lauren:
+We can lock MTCA-required tasks while still allowing students to mark them complete or add notes.
+
+28:00–35:00 — Timeline & Milestones
+
+Lauren:
+Above the Kanban view, there’s a timeline showing macro milestones:
+
+Research
+
+Academics
+
+Materials
+
+Training
+
+Pre-screens
+
+Auditions
+
+Decisions
+
+Each phase unlocks contextually based on date and completion status.
+
+Charlie:
+I like that. It visually reinforces progress.
+
+Kim:
+Can students jump ahead?
+
+Lauren:
+Yes, but with guardrails. For example, they can view later stages, but the system flags missing prerequisites.
+
+35:00–42:00 — Permissions & Roles
+
+Lauren:
+Roles matter here. We’re modeling:
+
+Student
+
+Coach
+
+Admin
+
+MTCA Director
+
+Each role has different visibility and edit permissions.
+
+Charlie:
+For example, coaches shouldn’t edit deadlines, but they should see student progress.
+
+Lauren:
+Exactly. Deadlines are system-controlled. Coaches add qualitative feedback, not structural data.
+
+Kim:
+And parents?
+
+Lauren:
+Optional read-only role. We can phase that in later.
+
+42:00–48:00 — Data Integrity & Reporting
+
+Lauren:
+Everything we’re building is reportable. You’ll be able to answer questions like:
+
+How many students are behind on materials?
+
+Which schools are most commonly applied to?
+
+Where students tend to stall in the process?
+
+Charlie:
+That’s huge. Right now we’re flying blind.
+
+Kim:
+Could this eventually inform programming decisions?
+
+Lauren:
+Absolutely. That’s one of the long-term benefits of owning your data.
+
+48:00–54:00 — Rollout Strategy
+
+Charlie:
+What does rollout look like? We can’t flip a switch overnight.
+
+Lauren:
+Phase 1 is internal validation with a small cohort. Phase 2 is opt-in students. Phase 3 is default adoption.
+
+We’ll also import existing College Planner data where feasible, but we won’t force it.
+
+Kim:
+Training will be key.
+
+Lauren:
+Agreed. The UI should reduce training burden, but we’ll also include walkthroughs.
+
+54:00–60:00 — Decisions & Next Steps
+
+Charlie:
+I’m aligned with the direction. This feels like the right foundation.
+
+Kim:
+Same. I’d like to see how the junior events piece ties in next.
+
+Lauren:
+Perfect. I’ll document today’s decisions and prep next steps.
+
+Explicit Decisions Made
+
+MTCA will move forward with a unified College List CRM platform
+
+Each school + program combination will be modeled as a distinct application entity
+
+MTCA-scaffolded tasks will be locked by default
+
+Timeline phases will guide but not hard-block student progress
+
+Coaches will have read-only access to structural data
+
+Action Items (Intentionally Rich for Demo)
+
+Lauren to deliver written system architecture summary for the College List feature
+
+Lauren to share updated mockups reflecting program-level application cards
+
+Charlie to review and confirm task ownership rules (locked vs editable)
+
+Kim to compile a list of required MTCA-scaffolded tasks
+
+Lauren to draft permission matrix for all user roles
+
+Schedule follow-up meeting with Leo to finalize junior events integration
+
+Identify pilot student cohort for Phase 1 rollout
+
+Define reporting metrics MTCA leadership wants access to in v1

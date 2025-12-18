@@ -1,0 +1,21 @@
+Steven began the meeting by framing the discussion around visibility and accountability. He explained that directors need to understand what is happening across sites without being overwhelmed by detail. He stressed that too much data can be just as problematic as too little.
+
+Lauren walked through a proposed reporting structure that aggregates usage, waste, and overstock signals at the district level. She emphasized that the goal is to highlight patterns and outliers rather than provide exhaustive reports.
+
+Lisa asked whether directors would be able to drill down if they noticed an anomaly. Lauren confirmed that drill-down would be available, but not front-and-center, so that directors are not tempted to micromanage.
+
+The discussion shifted to permissions. Steven explained that different districts operate differently, and a one-size-fits-all approach would not work. He asked whether permissions could be customized without engineering involvement.
+
+Lauren proposed defining three default roles — Site Manager, Director, and Admin — with a configurable permission matrix that could be adjusted per district. She clarified that custom roles could come later if needed.
+
+Lisa raised a question about auditability and whether changes to permissions would be logged. Lauren confirmed that permission changes would be tracked to support accountability and compliance.
+
+There was a longer discussion about reporting cadence. Steven noted that weekly summaries would be more useful than real-time dashboards for directors. Lauren agreed and suggested configurable digest emails or dashboards that refresh on a set schedule.
+
+The group debated which metrics truly matter at the director level. Waste percentage, overstock frequency, and order volatility were identified as high-value signals. Item-level details were explicitly deprioritized.
+
+Lauren asked for feedback on visual design, noting that directors are often reviewing reports quickly between meetings. Steven emphasized that clarity and scannability were critical.
+
+Toward the end of the meeting, the team aligned on next steps: finalize the permission matrix, validate director-level metrics with two districts, and prototype a sample director dashboard for review.
+
+The meeting closed with agreement that the system should support informed oversight without creating unnecessary friction between directors and site managers.

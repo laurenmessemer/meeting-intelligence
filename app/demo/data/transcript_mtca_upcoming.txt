@@ -1,0 +1,13 @@
+This meeting has not yet occurred.
+
+Planned discussion topics include:
+
+- Final review of the College List beta feature
+- Student-facing UX walkthrough
+- Coach permissions and visibility guardrails
+- Timeline for phased rollout to students
+- Internal ownership for feedback triage
+- Communication plan to families and coaches
+- Success metrics for the first 30 days post-launch
+
+No decisions have been made yet.

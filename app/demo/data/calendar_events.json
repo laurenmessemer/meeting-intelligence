@@ -1,0 +1,79 @@
+[
+    {
+      "id": "demo_gh_event_001",
+      "client_name": "Good Health",
+      "summary": "Good Health – Inventory & Ordering Workflow Review",
+      "start": "2025-12-08T09:00:00-06:00",
+      "end": "2025-12-08T10:00:00-06:00",
+      "description": "Review of inventory thresholds, ordering cadence, and vendor sync behavior.",
+      "attendees": [
+        "lisa@goodhealth.com",
+        "mike@goodhealth.com",
+        "lauren@mesmerize.studio"
+      ],
+      "location": "Zoom",
+      "transcript_file": "transcript_good_health_1.txt"
+    },
+    {
+      "id": "demo_gh_event_002",
+      "client_name": "Good Health",
+      "summary": "Good Health – Reporting, Permissions & Director Views",
+      "start": "2025-12-15T09:00:00-06:00",
+      "end": "2025-12-15T10:00:00-06:00",
+      "description": "Discussion focused on role-based reporting, permissions, and director-level dashboards.",
+      "attendees": [
+        "lisa@goodhealth.com",
+        "steven@goodhealth.com",
+        "lauren@mesmerize.studio"
+      ],
+      "location": "Zoom",
+      "transcript_file": "transcript_good_health_2.txt"
+    },
+    {
+      "id": "demo_mtca_event_001",
+      "client_name": "MTCA",
+      "summary": "MTCA – College List Platform Architecture Review",
+      "start": "2025-12-12T09:00:00-06:00",
+      "end": "2025-12-12T10:15:00-06:00",
+      "description": "Internal working session reviewing the College List feature architecture and rollout plan.",
+      "attendees": [
+        "charlie@mtcollegeauditions.com",
+        "kim@mtcollegeauditions.com",
+        "lauren@mesmerize.studio"
+      ],
+      "location": "Zoom",
+      "transcript_file": "transcript_mtca.txt"
+    },
+    {
+      "id": "demo_mtca_event_002",
+      "client_name": "MTCA",
+      "summary": "MTCA – College List Beta Readiness & Student Rollout",
+      "start": "2025-12-20T14:00:00-06:00",
+      "end": "2025-12-20T15:00:00-06:00",
+      "description": "Review beta readiness, rollout sequencing, student communication plan, and internal ownership.",
+      "attendees": [
+        "charlie@mtcollegeauditions.com",
+        "kim@mtcollegeauditions.com",
+        "amy@mtcollegeauditions.com",
+        "lauren@mesmerize.studio"
+      ],
+      "location": "Zoom",
+      "transcript_file": "transcript_mtca_upcoming.txt"
+    },
+    {
+      "id": "demo_gh_event_003",
+      "client_name": "Good Health",
+      "summary": "Good Health – Inventory Alerts & Director Approval Flow",
+      "start": "2025-12-22T10:00:00-06:00",
+      "end": "2025-12-22T11:00:00-06:00",
+      "description": "Review alert thresholds, director approval rules, and rollout timing for inventory controls.",
+      "attendees": [
+        "lisa@goodhealth.com",
+        "steven@goodhealth.com",
+        "lauren@mesmerize.studio"
+      ],
+      "location": "Zoom",
+      "transcript_file": "transcript_good_health_upcoming.txt"
+    }    
+  ]
+  

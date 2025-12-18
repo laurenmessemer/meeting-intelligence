@@ -1,141 +1,270 @@
-# Meeting Intelligence Agent v1
-
-A minimal, general-purpose agent framework with a fully implemented meeting intelligence workflow.
+# Meeting Intelligence Agent
 
 ## Overview
+The Meeting Intelligence Agent is a Python-based, multi-workflow chat agent designed to extract structured intelligence from meetings. It enables users to summarize past meetings, generate professional follow-up emails, and prepare briefings for upcoming meetings by coordinating calendar data, transcripts, persistent memory, and LLM-powered tools.
 
-This is a production-quality Python agent that demonstrates coordination, memory, and determinism. The agent accepts chat messages, recognizes intent, executes workflows, and integrates with real systems (Google Calendar, Zoom, HubSpot).
+This system is intentionally designed as a coordination-first agent, not a thin wrapper around an LLM. It applies deterministic policies, multi-step orchestration, and persistent memory to steer LLM outputs toward reliable, context-aware results.
 
-## Architecture
+The application supports two environments—a fully self-contained demo mode and a production mode with live integrations—while preserving identical orchestration logic across both.
 
-The framework emphasizes:
-- **Coordination over LLM cleverness**: Code coordinates, LLMs reason
-- **Deterministic outcomes**: Predictable behavior through explicit policies
-- **Persistent memory**: Cross-session personalization
-- **Single responsibility**: Each file has one clear purpose
+## What Problem This Solves
+Meetings generate large volumes of unstructured information across calendars, transcripts, and follow-ups. This application transforms that raw data into:
 
-## Directory Structure
+* Concise summaries
+* Explicit decisions
+* Actionable next steps
+* Context-aware follow-up communications
+* Personalized briefings grounded in prior history
 
-```
-app/
-├── main.py                 # FastAPI app entry point
-├── config.py              # Configuration management
-├── api/                   # API layer
-│   ├── chat.py           # POST /api/chat endpoint
-│   └── ui.py             # HTML chat UI
-├── agent/                 # Agent core
-│   ├── orchestrator.py   # Control flow coordinator
-│   ├── intents.py        # Intent recognition
-│   ├── workflows.py      # Workflow definitions
-│   └── commitments.py    # Task creation logic
-├── llm/                   # LLM layer
-│   ├── client.py         # Gemini API wrapper
-│   └── prompts.py        # All prompts
-├── tools/                 # LLM-powered tools
-│   ├── summarize.py      # Meeting summarization
-│   ├── meeting_brief.py  # Stub
-│   └── followup.py       # Follow-up email generation
-├── integrations/          # External integrations
-│   ├── calendar.py       # Google Calendar
-│   ├── zoom.py           # Zoom transcript
-│   ├── hubspot.py        # HubSpot tasks
-│   └── gmail.py          # Stub
-├── memory/                # Memory system
-│   ├── models.py         # SQLAlchemy models
-│   ├── repo.py           # Memory operations
-│   └── schemas.py        # Pydantic schemas
-└── db/                    # Database
-    └── session.py         # SQLAlchemy session
-```
+Rather than relying on a single LLM call, the system coordinates multiple data sources and tools to produce structured, auditable outputs.
 
-## Setup
+## Agent Definition & Classification
+Under the provided criteria, this system qualifies as an agent because it:
 
-### 1. Install Dependencies
+* Wraps multiple LLM-powered tools
+* Applies explicit coordination logic beyond model inference
+* Maintains persistent memory across sessions
+* Executes specialized, stateful workflows
+* Uses deterministic guardrails for critical decisions
 
-```bash
-pip install -r requirements.txt
-```
+It is not a “thinking model with a large context window.” Intelligence emerges from orchestration.
 
-### 2. Configure Environment
+## High-Level Architecture
+At a system level, the application is composed of seven distinct layers:
 
-Copy `.env.example` to `.env` and fill in your credentials:
+UI / API
+   ↓
+Intent Recognition
+   ↓
+Orchestrator (Control Flow)
+   ↓
+Workflow Execution
+   ↓
+LLM-Powered Tools
+   ↓
+Memory & Persistence
+   ↓
+External Integrations
 
-```bash
-cp .env.example .env
-```
+Each layer has a single responsibility and does not leak concerns into adjacent layers.
 
-Required configuration:
-- `DATABASE_URL`: PostgreSQL connection string
-- `GEMINI_API_KEY`: Google Gemini API key
-- `GOOGLE_CREDENTIALS_PATH`: Path to Google OAuth credentials JSON
-- `HUBSPOT_API_KEY`: HubSpot API key (for task creation)
+## Layer-by-Layer Architecture
 
-### 3. Initialize Database
+### 1. UI & Interaction Layer
+**Purpose:** Accept user input and render structured responses.
 
-```bash
-# Create database tables
-python -c "from app.db.session import engine, Base; from app.memory.models import *; Base.metadata.create_all(bind=engine)"
-```
+**Responsibilities**
+* Accept natural language input via web UI or REST API
+* Instantiate orchestration dependencies
+* Display responses, agent notes, memory provenance, and suggested actions
 
-### 4. Run the Application
+**Key Characteristics**
+* Stateless with respect to business logic
+* Does not perform orchestration, memory access, or LLM calls
+* Acts as a thin presentation layer
 
-```bash
-python -m app.main
-```
+### 2. Intent Recognition Layer
+**Purpose:** Classify user intent and extract entities.
 
-Or using uvicorn directly:
+**Responsibilities**
+* Determine user intent (e.g. summarize, brief, follow-up)
+* Extract raw entities (client name, date text)
+* Return structured intent metadata
 
-```bash
-uvicorn app.main:app --reload
-```
+**Design Notes**
+* Powered by an LLM with temperature = 0.0 for determinism
+* Performs classification only—no execution
+* Avoids date parsing or client resolution (handled later)
 
-The application will be available at `http://localhost:8000`
+### 3. Orchestration Layer (Core Intelligence)
+**Purpose:** Coordinate all system behavior.
+This is the heart of the agent.
 
-## Usage
+**Responsibilities**
+* Route requests to specialized workflows
+* Enforce deterministic policies for:
+    * Client resolution
+    * Date parsing
+    * Meeting selection
+* Assemble memory context prior to LLM invocation
+* Manage workflow state (active meetings, interaction history)
+* Generate agent notes and suggested next actions
 
-### Chat Interface
+**Explicit Non-Responsibilities**
+* No SQL
+* No HTTP
+* No LLM prompt construction
 
-Navigate to `http://localhost:8000` to access the web chat interface.
+This separation ensures orchestration logic remains auditable and testable.
 
-### API Endpoint
+### 4. Workflow Execution Layer
+**Purpose:** Implement specialized, multi-step workflows.
 
-```bash
-curl -X POST http://localhost:8000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Summarize my last meeting with MTCA"}'
-```
+The system supports multiple workflows, including:
+* Meeting summarization
+* Follow-up email generation
+* Upcoming meeting briefings
+* CRM task approval
 
-## Workflow: Meeting Summary
+**Each workflow:**
+* Has dedicated control flow
+* Handles its own validation and fallbacks
+* Coordinates calendar data, transcripts, memory, and tools
+* Workflows are stateful, but tools remain stateless.
 
-The implemented workflow handles requests like:
-- "Summarize my last meeting with [client name]"
+### 5. LLM-Powered Tool Layer
+**Purpose:** Perform content generation.
 
-**Execution steps:**
-1. Recognize intent and extract client name
-2. Find most recent calendar meeting for client
-3. Extract Zoom meeting ID from calendar event
-4. Fetch transcript (if available)
-5. Summarize meeting using LLM
-6. Extract decisions and action items
-7. Create HubSpot tasks for action items
-8. Save summary and memory
-9. Return formatted response
+**Characteristics**
+* Each tool is a stateless function
+* Accepts fully prepared context
+* Returns structured output (JSON or text)
+* Performs no data access or orchestration
 
-## Key Design Principles
+**Examples**
+* Meeting summarization
+* Follow-up email drafting
+* Meeting brief generation
+* Intent classification
 
-1. **Orchestrator owns control flow**: All coordination happens in `orchestrator.py`
-2. **No unnecessary abstractions**: Direct, clear code paths
-3. **Deterministic policies**: Task creation rules are code, not LLM prompts
-4. **Memory persistence**: All interactions and summaries are stored
-5. **Graceful degradation**: Works with or without transcripts
+This design makes tools reusable, testable, and swappable.
 
-## Notes
+### 6. Memory & Persistence Layer
+**Purpose:** Provide persistent, cross-session intelligence.
+The agent stores and retrieves structured memory using a relational database.
 
-- Zoom transcript fetching is stubbed (requires Zoom API implementation)
-- Gmail integration is stubbed
-- Meeting brief tool is stubbed
-- The framework is designed for extension with additional workflows
+**Memory Types**
+* **Meetings:** Canonical records of processed meetings
+* **Memory Entries:** Extracted intelligence (summaries, decisions, actions)
+* **Interactions:** Full audit trail of user requests and agent responses
+* **Commitments:** CRM-linked action items (extensible)
 
-## License
+**Memory Behavior**
+* Retrieved by client scope
+* Prioritized deterministically:
+    1. Decisions
+    2. Action items
+    3. Summaries
+    4. Notes
+* Limited to prevent context overload
+* Passed explicitly into tools as context
+* Memory directly influences future responses, enabling personalization.
 
-See LICENSE file.
+### 7. External Integrations Layer
+**Purpose:** Interface with third-party systems.
+
+**Current integrations include:**
+* Calendar provider (event metadata)
+* Video conferencing provider (transcripts)
+* CRM system (company resolution, task creation)
+
+**Design Principles**
+* Loose coupling
+* Standardized return shapes
+* No business logic
+* Graceful failure handling
+
+## Demo Mode vs Production Mode
+The application supports two parallel environments:
+
+**Demo Mode (default):**
+* Uses file-based fixtures
+* Requires no external credentials
+* Mirrors production APIs exactly
+
+**Production Mode:**
+* Uses live APIs
+* Shares identical orchestration logic
+
+Mode selection is centralized and explicit. Demo mode is not a collection of conditional hacks—it is a parallel data source implementation designed for evaluation, development, and testing.
+
+## End-to-End Orchestration Flow (Summary)
+For a request like “Summarize my last meeting”:
+
+1. User submits message
+2. Intent is classified
+3. Orchestrator selects workflow
+4. Meeting is deterministically resolved
+5. Transcript is retrieved
+6. Relevant memory is selected and prioritized
+7. LLM tool is invoked with structured context
+8. Results are persisted
+9. Suggested next actions are generated
+10. Response is returned with transparency metadata
+
+Every step is explicit, logged, and traceable.
+
+## Mapping to Agent Requirements
+* **Written in Python**
+    * ✔ Entire system implemented in Python with modern frameworks and typing.
+* **Interactive**
+    * ✔ Web UI and REST API enable smooth, conversational interaction.
+* **LLM-Powered Tools**
+    * ✔ Multiple tools are directly powered by an LLM, each with a focused responsibility.
+* **Coordination Beyond Raw LLM Calls**
+    * ✔ Deterministic orchestration governs data selection, memory, and control flow.
+* **Persistent Memory**
+    * ✔ Structured memory is stored in a database and influences future behavior.
+* **Specialized Workflows**
+    * ✔ Multiple personalized workflows exist beyond generic chat.
+
+## Alignment with Guidelines
+* **Use Free / Low-Cost Tools**
+    * Supports free-tier LLM usage
+    * Demo mode requires zero credentials
+    * No unnecessary API calls
+* **Make It Easy**
+    * Demo mode runs without setup complexity
+    * Clear separation between demo and production environments
+* **Use AI as an Aid, Not a Crutch**
+    * Deterministic logic precedes LLM usage
+    * LLMs generate content, not decisions
+    * Critical paths are governed by code, not inference
+
+## Memory Model & Evolution
+Memory is designed as a first-class system primitive, not conversation history.
+It enables:
+* Contextual personalization
+* Cross-session continuity
+* Transparent provenance
+
+The model is intentionally extensible, allowing future evolution into:
+* Semantic memory relationships
+* Conflict resolution
+* Temporal reasoning
+* User- or team-scoped memory
+
+## Extensibility & Future Integrations
+The architecture supports straightforward expansion into:
+* Additional CRMs
+* Task management systems
+* Knowledge bases
+* Communication platforms
+* Analytics workflows
+* Document storage
+* Direct email sending
+
+New integrations follow established patterns without altering orchestration logic.
+
+## Observations & Improvement Areas (Analytical)
+This codebase is functional and well-structured. Areas identified for future improvement include:
+* Memory query optimization
+* Caching of repeated LLM outputs
+* Async I/O for scalability
+* Authentication and rate limiting
+* Structured logging and observability
+* Cleanup of legacy diagnostic code
+
+These are evolutionary improvements, not blockers.
+
+## Conclusion
+This Meeting Intelligence Agent demonstrates a clear understanding of applied agent design:
+* Intelligence emerges from coordination, not prompt size
+* LLMs are used strategically, not indiscriminately
+* Memory is structured, persistent, and influential
+* Workflows are explicit, specialized, and extensible
+
+The system is intentionally designed to be understandable, auditable, and evolvable.
+
+[![Meeting Intelligence Agent Demo](https://img.youtube.com/vi/3rSsK8P8mQ8/0.jpg)](https://youtu.be/3rSsK8P8mQ8)
+*Click the image above to watch the production environment demonstration.*

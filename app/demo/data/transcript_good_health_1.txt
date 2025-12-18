@@ -1,0 +1,17 @@
+Lisa opened the meeting by explaining ongoing issues at several pilot sites related to over-ordering, particularly with produce and dairy items. She noted that site managers are erring on the side of caution due to fear of stockouts, which is leading to increased waste.
+
+Lauren asked a few clarifying questions about how par levels are currently determined. Lisa explained that they are largely static and were set months ago, without much adjustment for seasonality or local events. Mike added that managers rarely revisit these numbers unless there is a problem.
+
+Lauren proposed shifting away from hard enforcement rules and instead introducing soft signals that highlight risk. She explained that rather than blocking an order outright, the system could surface warnings like “This order exceeds typical usage by 25%,” allowing managers to make informed decisions.
+
+Mike asked how these warnings would be communicated and whether they would slow down the ordering process. Lauren reassured him that alerts would be inline and non-disruptive, designed to inform rather than interrupt.
+
+The conversation moved toward vendor integration. Mike asked whether vendors would have access to projected order quantities or only finalized purchase orders. Lauren explained that, for now, vendors would only see finalized orders to avoid confusion and contractual issues.
+
+Lisa raised a concern about training, noting that some site managers are less tech-savvy. She emphasized that any new indicators must be intuitive and clearly explained. Lauren suggested adding tooltips and short helper text rather than long documentation.
+
+There was a discussion about how to visualize overstock risk. Lauren described a simple color-coded indicator that appears next to items or categories, rather than forcing managers to interpret complex charts.
+
+The group discussed how these changes would affect directors versus site managers. Lisa noted that directors care more about trends and exceptions than individual line items. Lauren confirmed that director views would be more aggregated, showing patterns over time rather than day-to-day fluctuations.
+
+As the meeting wrapped up, the team aligned on next steps: refining threshold logic, prototyping the risk indicator, and validating assumptions with two pilot locations before broader rollout. Lisa expressed appreciation for the collaborative approach and reiterated that flexibility was key.
