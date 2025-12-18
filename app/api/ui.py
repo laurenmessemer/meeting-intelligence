@@ -522,6 +522,33 @@ def chat_ui():
             margin-top: 4px;
         }
 
+        .suggested-actions {
+            display: none;
+            gap: 8px;
+            padding: 8px 16px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+
+        .suggested-actions.active {
+            display: flex;
+        }
+
+        .suggested-action {
+            padding: 6px 12px;
+            border-radius: 14px;
+            font-size: 13px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 0.5px solid var(--color-border);
+            cursor: pointer;
+            transition: all 150ms ease;
+        }
+
+        .suggested-action:hover {
+            background: rgba(255, 255, 255, 0.85);
+            transform: translateY(-1px);
+        }
+
         
         /* Responsive */
         @media (max-width: 768px) {
@@ -726,6 +753,7 @@ def chat_ui():
                 </div>
             </div>
         </div>
+        <div id="suggestedActions" class="suggested-actions"></div>
         <div class="input-area">
             <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
             <button id="sendButton" onclick="sendMessage()">Send</button>
@@ -734,6 +762,7 @@ def chat_ui():
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
+        const suggestedActionsEl = document.getElementById('suggestedActions');
 
         let lastMetadata = null;
 
@@ -745,8 +774,12 @@ def chat_ui():
         }
         
         async function sendMessage(textOverride = null) {
+            // Clear previous suggested actions
+            document.getElementById('suggestedActions')?.classList.remove('active');
+
             const message = textOverride ?? messageInput.value.trim();
             if (!message) return;
+
             
             // Disable input with smooth transition
             messageInput.disabled = true;
@@ -787,19 +820,25 @@ def chat_ui():
                 
                 // Add response with slight delay for smooth transition
                 setTimeout(() => {
-                    // 1️1 Render the agent message and KEEP A REFERENCE
+                    // 1️⃣ Render the agent message and KEEP A REFERENCE
                     const agentMessageEl = addMessage(data.message, 'agent');
 
-                    // 2️2 Render agent intelligence context directly AFTER that message
+                    // 2️⃣ Render agent intelligence context directly AFTER that message
                     if (data.metadata?.agent_notes || data.metadata?.memory_used?.entries?.length) {
                         renderAgentContext(agentMessageEl, data.metadata);
                     }
 
-                    // 3️3 Existing HubSpot logic stays untouched
+                    // 3️⃣ NEW: Render suggested next actions (if any)
+                    if (data.metadata?.suggested_actions) {
+                        renderSuggestedActions(data.metadata.suggested_actions);
+                    }
+
+                    // 4️⃣ Existing HubSpot logic stays untouched
                     if (data.metadata?.requires_hubspot_approval) {
                         renderHubSpotApproval(data.metadata.proposed_hubspot_tasks || []);
                     }
                 }, 100);
+
             } catch (error) {
                 if (loadingId) {
                     loadingId.style.transition = 'opacity 150ms cubic-bezier(0.4, 0, 0.2, 1)';
@@ -978,6 +1017,27 @@ def chat_ui():
                 element.remove();
             }
         }
+
+        function renderSuggestedActions(actions) {
+            const container = document.getElementById('suggestedActions');
+            container.innerHTML = '';
+
+            if (!actions || actions.length === 0) {
+                container.classList.remove('active');
+                return;
+            }
+
+            actions.forEach(action => {
+                const btn = document.createElement('div');
+                btn.className = 'suggested-action';
+                btn.textContent = action.label;
+                btn.onclick = () => prefillInput(action.prefill);
+                container.appendChild(btn);
+            });
+
+            container.classList.add('active');
+        }
+
         
         function prefillInput(text) {
             messageInput.value = text;

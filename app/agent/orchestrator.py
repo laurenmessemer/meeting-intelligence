@@ -556,6 +556,22 @@ class Orchestrator:
             for item in summary_result.get("action_items", [])
         ]
 
+        suggested_actions = [
+            {
+                "label": "Generate follow-up email",
+                "prefill": "Generate a follow-up email",
+            }
+        ]
+
+        if client_name:
+            suggested_actions.append(
+                {
+                    "label": f"Brief me on the next {client_name} meeting",
+                    "prefill": f"Brief me on my next {client_name} meeting",
+                }
+            )
+
+
         return {
             "message": response_message,
             "metadata": {
@@ -566,6 +582,7 @@ class Orchestrator:
                 "calendar_event_summary": calendar_event.get("summary"),
                 "agent_notes": agent_notes,
                 "memory_used": memory_provenance,
+                "suggested_actions": suggested_actions,
             },
         }
 
@@ -635,6 +652,12 @@ class Orchestrator:
                 "client_name": meeting.client_name,
                 "agent_notes": agent_notes,
                 "memory_used": memory_provenance,
+                "suggested_actions": [
+                    {
+                        "label": "Brief me on my next meeting",
+                        "prefill": f"Brief me on my next meeting with {meeting.client_name}",
+                    }
+                ],
             },
         }
 
