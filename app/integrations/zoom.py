@@ -8,7 +8,7 @@ import base64
 from datetime import datetime, timedelta
 from urllib.parse import quote
 from app.runtime.mode import is_demo_mode
-from app.demo.fixtures import demo_zoom_transcript
+from app.demo.transcripts import load_demo_transcript
 
 
 class ZoomClient:

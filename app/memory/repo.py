@@ -132,8 +132,6 @@ class MemoryRepo:
             .first()
         )
 
-
-    # Memory entry operations
     def create_memory_entry(self, entry_data: MemoryEntryCreate) -> MemoryEntry:
         """Create a memory entry."""
         data = entry_data.dict()
@@ -161,6 +159,24 @@ class MemoryRepo:
         return self.session.query(MemoryEntry).filter(
             MemoryEntry.meeting_id.in_(meeting_ids)
         ).all()
+
+    def get_recent_meetings_for_client(
+        self,
+        client_name: str,
+        exclude_meeting_id: Optional[int] = None,
+        limit: int = 3,
+    ):
+        query = (
+            self.session.query(Meeting)
+            .filter(Meeting.client_name == client_name)
+            .order_by(Meeting.meeting_date.desc())
+        )
+
+        if exclude_meeting_id:
+            query = query.filter(Meeting.id != exclude_meeting_id)
+
+        return query.limit(limit).all()
+
 
 
     

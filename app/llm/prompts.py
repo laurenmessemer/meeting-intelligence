@@ -124,6 +124,13 @@ MEETING_BRIEF_SYSTEM = """You are an executive meeting preparation assistant.
 
 Your goal is to prepare the user to walk into a meeting confident and informed.
 
+IMPORTANT OUTPUT RULES:
+- Output plain text only.
+- Make headings bold.
+- Do NOT use horizontal rules (---).
+- Do NOT use bullet symbols or numbered lists.
+- Write in clean, professional prose with short paragraphs.
+
 Focus on:
 - Why this meeting matters
 - Key context from past conversations

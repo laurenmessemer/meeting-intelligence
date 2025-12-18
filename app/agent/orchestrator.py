@@ -1,7 +1,7 @@
 """Agent orchestrator - coordinates all operations, owns control flow."""
 
 from typing import Dict, Any, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from dateutil import parser
 import uuid
 import re 
@@ -27,14 +27,22 @@ from app.tools.meeting_brief import generate_meeting_brief
 from app.agent.client_resolution import resolve_client_name
 
 from app.runtime.mode import is_demo_mode
-from app.demo.fixtures import demo_zoom_transcript
-
+from app.demo.transcripts import load_demo_transcript
 
 from app.integrations.hubspot import (
     HubSpotIntegrationError,
     get_company_by_name,
     get_or_create_company_id
 )
+
+from app.demo.calendar import (
+    get_most_recent_demo_meeting,
+    get_demo_meetings_for_client,
+    load_demo_events,
+    get_demo_meeting_by_client_and_date,
+    get_next_upcoming_demo_meeting,
+)
+
 
 import logging
 
@@ -92,6 +100,18 @@ class Orchestrator:
             candidate = date(today.year - 1, parsed_date.month, parsed_date.day)
 
         return candidate
+
+    def _dedupe_suggested_actions(self, actions):
+        seen = set()
+        deduped = []
+
+        for action in actions:
+            key = (action.get("label"), action.get("prefill"))
+            if key not in seen:
+                seen.add(key)
+                deduped.append(action)
+
+        return deduped
 
 
     def _has_actionable_date(self, date_text: Optional[str]) -> bool:
@@ -267,19 +287,71 @@ class Orchestrator:
 
         # CASE 1: No client, no date → most recent meeting overall
         if not client_name and not date_str:
-            calendar_event = get_most_recent_meeting()
-            agent_notes.append(
-                "Selected the most recent meeting because no client or date was specified"
-            )
+
+            if is_demo_mode():
+                calendar_event = get_most_recent_demo_meeting()
+
+                if not calendar_event:
+                    return {
+                        "message": (
+                            "I don’t have any demo meetings yet. "
+                            "Try summarizing a specific meeting first."
+                        ),
+                        "metadata": {"error": "no_demo_meetings"},
+                    }
+
+                agent_notes.append(
+                    "Demo mode: selected most recent demo calendar event"
+                )
+
+                
+
+            # PROD MODE: fall back to calendar integration
+            else:
+                calendar_event = get_most_recent_meeting()
+                agent_notes.append(
+                    "Selected the most recent meeting because no client or date was specified"
+                )
+
 
         # CASE 2: Client + date → strict date resolution
         elif client_name and date_str:
             try:
                 target_date = self._parse_target_date(date_str)
-                calendar_event = get_meeting_by_client_and_date(
-                    client_name=client_name,
-                    target_date=target_date,
-                )
+
+                if is_demo_mode():
+                    calendar_event = get_demo_meeting_by_client_and_date(
+                        client_name=client_name,
+                        target_date=target_date,
+                    )
+                else:
+                    calendar_event = get_meeting_by_client_and_date(
+                        client_name=client_name,
+                        target_date=target_date,
+                    )
+
+                if not calendar_event:
+                    return {
+                        "message": f"I couldn't find a meeting with {client_name} on {date_str}.",
+                        "metadata": {
+                            "error": "meeting_not_found_for_date",
+                            "client_name": client_name,
+                            "date": date_str,
+                        },
+                    }
+
+            except Exception as e:
+                return {
+                    "message": (
+                        f"I couldn't resolve the meeting date you requested "
+                        f"({date_str}). Please try rephrasing."
+                    ),
+                    "metadata": {
+                        "error": "date_resolution_failed",
+                        "exception": str(e),
+                    },
+                }
+
                 if not calendar_event:
                     return {
                         "message": f"I couldn't find a meeting with {client_name} on {date_str}.",
@@ -330,9 +402,8 @@ class Orchestrator:
         # Load existing meeting early (if it exists)
         # -------------------------------------------------
 
-        if is_demo_mode():
-            client_name = "MTCA"
-            agent_notes.append("Demo mode active: defaulted client to MTCA")
+        if is_demo_mode() and not client_name:
+            agent_notes.append("Demo mode active")
 
         existing_meeting = self.memory_repo.get_meeting_by_calendar_id(
             calendar_event["id"]
@@ -373,27 +444,7 @@ class Orchestrator:
                 known_clients=known_clients,
             )
 
-        # 4) LLM resolver only if still unresolved
-        # llm_meta = None
-        # if not client_name:
-        #     known_clients = self.memory_repo.get_distinct_client_names()
-
-        #     # IMPORTANT: you must wire in your actual LLM call here
-        #     # Replace `your_llm_chat_fn` with your existing LLM chat callable.
-        #     llm_result = llm_resolve_client_name(
-        #         calendar_summary=calendar_event.get("summary", ""),
-        #         attendees=calendar_event.get("attendees", []),
-        #         known_clients=known_clients,
-        #         llm_chat_fn=your_llm_chat_fn,
-        #     )
-
-            # llm_meta = llm_result
-
-            # # Gate on confidence
-            # if llm_result.get("proposed_client") and llm_result.get("confidence", 0.0) >= 0.85:
-            #     client_name = llm_result["proposed_client"]
-
-        # 5) If still not resolved, ask user
+        # 4) If still not resolved, ask user
         if not client_name:
             return {
                 "message": (
@@ -424,8 +475,9 @@ class Orchestrator:
             meeting_date = datetime.utcnow()
 
         if is_demo_mode():
-            transcript = demo_zoom_transcript()
-            zoom_meeting_id = "demo_zoom_001"
+            transcript = load_demo_transcript(calendar_event)
+            zoom_meeting_id = f"demo_zoom_{calendar_event['id']}"
+
         else:
             zoom_meeting_id = extract_zoom_meeting_id(calendar_event)
             transcript = (
@@ -527,6 +579,13 @@ class Orchestrator:
         # Response
         # -------------------------------------------------
 
+        suggested_actions = [
+            {
+                "label": "Generate follow-up email",
+                "prefill": "Generate a follow-up email",
+            }
+        ]
+
         meeting_date_str = meeting.meeting_date.strftime("%B %d, %Y")
 
         response_message = f"""**Meeting Summary**
@@ -546,6 +605,63 @@ class Orchestrator:
 
         self.memory_repo.set_active_meeting(meeting.id)
 
+        recent_meetings = self.memory_repo.get_recent_meetings_for_client(
+            client_name=client_name,
+            exclude_meeting_id=meeting.id,
+            limit=3,
+        )
+
+        date_suggestions = []
+
+        if is_demo_mode():
+            now = datetime.now(timezone.utc)
+            demo_events = load_demo_events()
+
+            for e in demo_events:
+                if e["id"] == calendar_event["id"]:
+                    continue
+
+                start_dt = datetime.fromisoformat(
+                    e["start"].replace("Z", "+00:00")
+                )
+
+                event_date = start_dt.strftime("%B %d")
+                client = e.get("client_name", "the client")
+
+                if start_dt > now:
+                    # FUTURE → BRIEF
+                    date_suggestions.append(
+                        {
+                            "label": f"Brief me on the {client} meeting on {event_date}",
+                            "prefill": f"Brief me on my {client} meeting on {event_date}",
+                        }
+                    )
+                else:
+                    # PAST → SUMMARIZE
+                    date_suggestions.append(
+                        {
+                            "label": f"Summarize meeting with {client} on {event_date}",
+                            "prefill": f"Summarize my meeting with {client} on {event_date}",
+                        }
+                    )
+
+
+
+        else:
+            recent_meetings = self.memory_repo.get_recent_meetings_for_client(
+                client_name=client_name,
+                exclude_meeting_id=meeting.id,
+                limit=3,
+            )
+
+            for m in recent_meetings:
+                formatted_date = m.meeting_date.strftime("%B %d")
+                date_suggestions.append(
+                    {
+                        "label": f"Summarize meeting with {client_name} on {formatted_date}",
+                        "prefill": f"Summarize my meeting with {client_name} on {formatted_date}",
+                    }
+                )
 
         proposed_tasks = [
             {
@@ -556,12 +672,7 @@ class Orchestrator:
             for item in summary_result.get("action_items", [])
         ]
 
-        suggested_actions = [
-            {
-                "label": "Generate follow-up email",
-                "prefill": "Generate a follow-up email",
-            }
-        ]
+        suggested_actions.extend(date_suggestions)
 
         if client_name:
             suggested_actions.append(
@@ -571,6 +682,7 @@ class Orchestrator:
                 }
             )
 
+        suggested_actions = self._dedupe_suggested_actions(suggested_actions)
 
         return {
             "message": response_message,
@@ -669,6 +781,11 @@ class Orchestrator:
     def _execute_meeting_brief_workflow(self, entities: Dict[str, Any]) -> Dict[str, Any]:
         client_name = entities.get("client_name")
         calendar_event = get_next_upcoming_meeting_from_calendar(client_name)
+
+        if is_demo_mode():
+            calendar_event = get_next_upcoming_demo_meeting(client_name or "MTCA")
+        else:
+            calendar_event = get_next_upcoming_meeting_from_calendar(client_name)
 
         if not calendar_event:
             return {

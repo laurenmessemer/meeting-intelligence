@@ -9,7 +9,14 @@ import os
 from app.config import Config
 from dateutil import parser as date_parser
 from app.runtime.mode import is_demo_mode
-from app.demo.fixtures import demo_calendar_event_for
+
+from app.runtime.mode import is_demo_mode
+from app.demo.calendar import (
+    get_most_recent_demo_meeting,
+    get_demo_meetings_for_client,
+    get_next_upcoming_demo_meeting,
+)
+
 
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
@@ -150,7 +157,7 @@ def get_recent_meetings(days_back: int = 30) -> List[Dict[str, Any]]:
 
 def get_most_recent_meeting(days_back: int = 30) -> Optional[Dict[str, Any]]:
     if is_demo_mode():
-        return demo_calendar_event_for(client_name="MTCA")
+        return get_most_recent_demo_meeting()
 
     meetings = get_recent_meetings(days_back)
     if not meetings:
@@ -197,22 +204,14 @@ def get_most_recent_meeting_by_client(client_name: str) -> Optional[Dict[str, An
     """Get the most recent meeting for a client."""
 
     if is_demo_mode():
-        return demo_calendar_event_for(client_name="MTCA")
-
-
-
-    print("=" * 80)
-    print("DIAGNOSTIC: get_most_recent_meeting_by_client()")
-    print("=" * 80)
-    print(f"DIAGNOSTIC: client_name: {client_name}")
+        meetings = get_demo_meetings_for_client(client_name)
+        return meetings[0] if meetings else None
     
     meetings = search_meetings_by_client(client_name)
     if not meetings:
         print("DIAGNOSTIC: No meetings found")
         return None
     
-    print(f"\nDIAGNOSTIC: Found {len(meetings)} candidate meetings BEFORE sorting:")
-    print("-" * 80)
     for idx, m in enumerate(meetings, 1):
         try:
             parsed_dt = _to_utc_datetime(m["start"])
@@ -254,7 +253,7 @@ def get_meeting_by_client_and_date(
     """
 
     if is_demo_mode():
-        return demo_calendar_event_for(client_name=MTCA, target_date=2025-12-12)
+        return get_demo_meeting_by_client_and_date(client_name, target_date)
 
 
 
@@ -420,7 +419,7 @@ def get_next_upcoming_meeting_from_calendar(
     """
 
     if is_demo_mode():
-        return demo_calendar_event_for(client_name="MTCA")
+        return get_next_upcoming_demo_meeting(client_name)
 
 
 
@@ -496,3 +495,4 @@ def get_next_upcoming_meeting_from_calendar(
 
     print("DIAGNOSTIC: No upcoming meeting matched client filter")
     return None
+
