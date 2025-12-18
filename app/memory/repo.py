@@ -258,3 +258,25 @@ class MemoryRepo:
         self.session.refresh(interaction)
         return interaction
 
+
+    def get_last_interaction(self) -> Optional[Interaction]:
+        """
+        Returns the most recent interaction.
+        """
+        return (
+            self.session.query(Interaction)
+            .order_by(Interaction.created_at.desc())
+            .first()
+        )
+
+
+    def get_recent_interactions(self, limit: int = 3) -> List[Interaction]:
+        """
+        Returns the most recent N interactions.
+        """
+        return (
+            self.session.query(Interaction)
+            .order_by(Interaction.created_at.desc())
+            .limit(limit)
+            .all()
+        )

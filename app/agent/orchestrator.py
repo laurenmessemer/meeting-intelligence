@@ -128,6 +128,9 @@ class Orchestrator:
     intent_override: Optional[str] = None,
     entities_override: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+
+        self.last_interaction = self.memory_repo.get_last_interaction()
+
         if intent_override:
             intent = intent_override
             entities = entities_override or {}
@@ -192,11 +195,20 @@ class Orchestrator:
         trace_id = str(uuid.uuid4())[:8]
 
         client_name = entities.get("client_name")
+        if not client_name and self.last_interaction and self.last_interaction.meta_data:
+            client_name = self.last_interaction.meta_data.get("client_name")
+
         raw_date_text = entities.get("date_text")
         date_str = raw_date_text if self._has_actionable_date(raw_date_text) else None
 
         calendar_event = None
         existing_meeting = None 
+
+        explicit_meeting_id = None
+
+        if self.last_interaction and self.last_interaction.meta_data:
+            explicit_meeting_id = self. last_interaction.meta_data.get("meeting_id")
+
 
         # CASE 1: No client, no date → most recent meeting overall
         if not client_name and not date_str:
@@ -493,24 +505,14 @@ class Orchestrator:
     def _execute_followup_workflow(self) -> Dict[str, Any]:
         meeting = self.memory_repo.get_active_meeting()
 
+        if not meeting and self.last_interaction and self.last_interaction.meta_data:
+            meeting_id = self.last_interaction.meta_data.get("meeting_id")
+            if meeting_id:
+                meeting = self.memory_repo.get_meeting(meeting_id)
+
         if not meeting:
             meeting = self.memory_repo.get_most_recent_meeting()
 
-
-        if not meeting:
-            return {
-                "message": "I don’t have any meetings on record yet.",
-                "metadata": {"error": "no_meetings"},
-            }
-
-        if not meeting.summary:
-            return {
-                "message": (
-                    "I don’t have a summarized meeting to generate a follow-up from yet. "
-                    "Please summarize a meeting first."
-                ),
-                "metadata": {"error": "meeting_not_summarized"},
-            }
 
         followup_text = generate_followup_email(
             summary=meeting.summary,
