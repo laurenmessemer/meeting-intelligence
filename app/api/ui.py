@@ -475,6 +475,53 @@ def chat_ui():
             cursor: not-allowed;
             box-shadow: none;
         }
+
+        /* Agent Context Card */
+        .agent-context {
+            margin-top: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.03);
+            border: 0.5px solid var(--color-border);
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .agent-context-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-primary);
+            cursor: pointer;
+        }
+
+        .agent-context-header::before {
+            content: "ⓘ";
+            font-size: 13px;
+            opacity: 0.7;
+        }
+
+        .agent-context-details {
+            margin-top: var(--spacing-xs);
+            padding-left: 18px;
+            display: none;
+        }
+
+        .agent-context.open .agent-context-details {
+            display: block;
+        }
+
+        .agent-context ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .agent-context li {
+            margin-top: 4px;
+        }
+
         
         /* Responsive */
         @media (max-width: 768px) {
@@ -740,7 +787,15 @@ def chat_ui():
                 
                 // Add response with slight delay for smooth transition
                 setTimeout(() => {
-                    addMessage(data.message, 'agent');
+                    // 1️1 Render the agent message and KEEP A REFERENCE
+                    const agentMessageEl = addMessage(data.message, 'agent');
+
+                    // 2️2 Render agent intelligence context directly AFTER that message
+                    if (data.metadata?.agent_notes || data.metadata?.memory_used?.entries?.length) {
+                        renderAgentContext(agentMessageEl, data.metadata);
+                    }
+
+                    // 3️3 Existing HubSpot logic stays untouched
                     if (data.metadata?.requires_hubspot_approval) {
                         renderHubSpotApproval(data.metadata.proposed_hubspot_tasks || []);
                     }
@@ -930,6 +985,47 @@ def chat_ui():
             // Scroll input into view if needed
             messageInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
+
+        function renderAgentContext(anchorMessage, metadata) {
+        const context = document.createElement('div');
+        context.className = 'agent-context';
+
+        const header = document.createElement('div');
+        header.className = 'agent-context-header';
+        header.textContent = 'How I chose this';
+
+        const details = document.createElement('div');
+        details.className = 'agent-context-details';
+
+        const list = document.createElement('ul');
+
+        if (metadata.agent_notes) {
+            metadata.agent_notes.forEach(note => {
+                const li = document.createElement('li');
+                li.textContent = note;
+                list.appendChild(li);
+            });
+        }
+
+        const hasMemoryNote = metadata.agent_notes?.some(
+            note => note.toLowerCase().includes('prior')
+        );
+
+        if (!hasMemoryNote && metadata.memory_used?.entries?.length) {
+            const li = document.createElement('li');
+            li.textContent = `Referenced ${metadata.memory_used.entries.length} prior client memories`;
+            list.appendChild(li);
+        }
+
+        details.appendChild(list);
+        context.appendChild(header);
+        context.appendChild(details);
+
+        header.onclick = () => context.classList.toggle('open');
+
+        anchorMessage.after(context);
+    }
+
 
         async function sendApprovalPayload(approvedIndexes) {
             console.log("Sending approval payload:", approvedIndexes);

@@ -118,6 +118,56 @@ class Orchestrator:
         return True
 
 
+    def _select_relevant_memory(
+        self,
+        *,
+        client_name: str,
+        workflow: str,
+        limit: int = 6,
+    ) -> Dict[str, Any]:
+        """
+        Select and prioritize memory entries for LLM context.
+        Priority order:
+        1. Decisions
+        2. Action items
+        3. Meeting summaries
+        4. Other notes
+        Within each group, newest first.
+        """
+
+        entries = self.memory_repo.get_memory_for_client(client_name)
+
+        if not entries:
+            return {"context": "", "used_entries": []}
+
+        # Priority by semantic importance
+        PRIORITY_ORDER = {
+            "decision": 0,
+            "action_item": 1,
+            "meeting_summary": 2,
+            "note": 3,
+        }
+
+        def score(entry):
+            priority = PRIORITY_ORDER.get(entry.key, 99)
+            created_at = getattr(entry, "created_at", None)
+            recency = -(created_at.timestamp() if created_at else 0)
+            return (priority, recency)
+
+        ranked = sorted(entries, key=score)
+        selected = ranked[:limit]
+
+        context = "\n".join(f"{e.key}: {e.value}" for e in selected)
+        used_entries = [
+            {
+                "key": e.key,
+                "created_at": (e.created_at.isoformat() if getattr(e, "created_at", None) else None),
+            }
+            for e in selected
+        ]
+
+        return {"context": context, "used_entries": used_entries}
+
     # -------------------------------------------------
     # Public entry point
     # -------------------------------------------------
@@ -191,12 +241,17 @@ class Orchestrator:
     def _execute_meeting_summary_workflow(
         self, entities: Dict[str, Any]
     ) -> Dict[str, Any]:
-
+        agent_notes = []
+        memory_provenance = {}
         trace_id = str(uuid.uuid4())[:8]
 
         client_name = entities.get("client_name")
         if not client_name and self.last_interaction and self.last_interaction.meta_data:
             client_name = self.last_interaction.meta_data.get("client_name")
+            if client_name:
+                agent_notes.append(
+                    f"Resolved client as {client_name} using the previous interaction’s recorded"
+                )
 
         raw_date_text = entities.get("date_text")
         date_str = raw_date_text if self._has_actionable_date(raw_date_text) else None
@@ -213,6 +268,9 @@ class Orchestrator:
         # CASE 1: No client, no date → most recent meeting overall
         if not client_name and not date_str:
             calendar_event = get_most_recent_meeting()
+            agent_notes.append(
+                "Selected the most recent meeting because no client or date was specified"
+            )
 
         # CASE 2: Client + date → strict date resolution
         elif client_name and date_str:
@@ -274,6 +332,7 @@ class Orchestrator:
 
         if is_demo_mode():
             client_name = "MTCA"
+            agent_notes.append("Demo mode active: defaulted client to MTCA")
 
         existing_meeting = self.memory_repo.get_meeting_by_calendar_id(
             calendar_event["id"]
@@ -412,10 +471,20 @@ class Orchestrator:
         # Summarization
         # -------------------------------------------------
 
-        memory_entries = self.memory_repo.get_memory_for_client(client_name)
-        memory_context = "\n".join(
-            f"{entry.key}: {entry.value}" for entry in memory_entries[:5]
+        memory_result = self._select_relevant_memory(
+            client_name=client_name,
+            workflow="meeting_summary",
         )
+
+        memory_context = memory_result["context"]
+        memory_provenance["entries"] = memory_result["used_entries"]
+
+        if memory_result["used_entries"]:
+            agent_notes.append(
+                f"Incorporated relevant prior decisions and summaries for context"
+            )
+
+
 
         # -------------------------------------------------
         # Pre-summary attendee context (SAFE, NON-INFERRED)
@@ -495,6 +564,8 @@ class Orchestrator:
                 "proposed_hubspot_tasks": proposed_tasks,
                 "requires_hubspot_approval": bool(proposed_tasks),
                 "calendar_event_summary": calendar_event.get("summary"),
+                "agent_notes": agent_notes,
+                "memory_used": memory_provenance,
             },
         }
 
@@ -504,6 +575,9 @@ class Orchestrator:
 
     def _execute_followup_workflow(self) -> Dict[str, Any]:
         meeting = self.memory_repo.get_active_meeting()
+        agent_notes = []
+        memory_provenance = {}
+
 
         if not meeting and self.last_interaction and self.last_interaction.meta_data:
             meeting_id = self.last_interaction.meta_data.get("meeting_id")
@@ -513,6 +587,36 @@ class Orchestrator:
         if not meeting:
             meeting = self.memory_repo.get_most_recent_meeting()
 
+        if not meeting:
+            return {
+                "message": "I don’t have any meetings on record yet.",
+                "metadata": {"error": "no_meetings"},
+            }
+
+        if not meeting.summary:
+            return {
+                "message": (
+                    "I don’t have a summarized meeting to generate a follow-up from yet. "
+                    "Please summarize the meeting first."
+                ),
+                "metadata": {
+                    "error": "meeting_not_summarized",
+                    "meeting_id": meeting.id,
+                },
+            }
+
+        memory_result = self._select_relevant_memory(
+            client_name=meeting.client_name,
+            workflow="followup",
+        )
+
+        if memory_result["used_entries"]:
+            agent_notes.append(
+                f"Referenced prior {meeting.client_name} decisions and action items when drafting the follow-up"
+            )
+        memory_context = memory_result["context"]
+        memory_provenance["entries"] = memory_result["used_entries"]
+
 
         followup_text = generate_followup_email(
             summary=meeting.summary,
@@ -520,16 +624,20 @@ class Orchestrator:
             action_items=meeting.action_items or [],
             client_name=meeting.client_name,
             meeting_date=meeting.meeting_date.date().isoformat(),
-            memory_context="",
+            memory_context=memory_context,
         )
+
 
         return {
             "message": followup_text,
             "metadata": {
                 "meeting_id": meeting.id,
                 "client_name": meeting.client_name,
+                "agent_notes": agent_notes,
+                "memory_used": memory_provenance,
             },
         }
+
 
     # -------------------------------------------------
     # Meeting Brief Workflow
@@ -537,7 +645,6 @@ class Orchestrator:
 
     def _execute_meeting_brief_workflow(self, entities: Dict[str, Any]) -> Dict[str, Any]:
         client_name = entities.get("client_name")
-
         calendar_event = get_next_upcoming_meeting_from_calendar(client_name)
 
         if not calendar_event:
@@ -549,15 +656,27 @@ class Orchestrator:
                 "metadata": {"error": "no_upcoming_meeting"},
             }
 
-        memory_entries = (
-            self.memory_repo.get_memory_for_client(client_name)
-            if client_name
-            else []
-        )
+        memory_provenance = {"entries": []}
+        agent_notes = []
 
-        memory_context = "\n".join(
-            f"- {entry.value}" for entry in memory_entries[:5]
-        )
+        if client_name:
+            memory_result = self._select_relevant_memory(
+                client_name=client_name,
+                workflow="meeting_brief",
+            )
+            memory_context = memory_result["context"]
+            memory_provenance["entries"] = memory_result["used_entries"]
+            if memory_result["used_entries"]:
+                agent_notes.append(
+                    f"Used prior {client_name} context to prepare this meeting brief"
+                )
+
+        else:
+            memory_context = ""
+            agent_notes.append(
+                "Selected the most recent meeting because no client or date was specified"
+            )
+
 
         brief_text = generate_meeting_brief(
             client_name=client_name,
@@ -572,6 +691,9 @@ class Orchestrator:
             "metadata": {
                 "calendar_event_id": calendar_event.get("id"),
                 "client_name": client_name,
+                "agent_notes": agent_notes,
+                "memory_used": memory_provenance,
+
             },
         }
 
