@@ -266,7 +266,14 @@ class Orchestrator:
         trace_id = str(uuid.uuid4())[:8]
 
         client_name = entities.get("client_name")
-        if not client_name and self.last_interaction and self.last_interaction.meta_data:
+
+        #  Only infer client early in NON-demo mode
+        if (
+            not is_demo_mode()
+            and not client_name
+            and self.last_interaction
+            and self.last_interaction.meta_data
+        ):
             client_name = self.last_interaction.meta_data.get("client_name")
             if client_name:
                 agent_notes.append(
@@ -362,17 +369,6 @@ class Orchestrator:
                         },
                     }
                     
-            except Exception as e:
-                return {
-                    "message": (
-                        f"I couldn't resolve the meeting date you requested "
-                        f"({date_str}). Please try rephrasing."
-                    ),
-                    "metadata": {
-                        "error": "date_resolution_failed",
-                        "exception": str(e),
-                    },
-                }
 
         # CASE 3: Client only → most recent meeting for that client
         elif client_name:
@@ -475,8 +471,32 @@ class Orchestrator:
             meeting_date = datetime.utcnow()
 
         if is_demo_mode():
+            now = datetime.now(timezone.utc)
+
+            if meeting_date.tzinfo is None:
+                meeting_date = meeting_date.replace(tzinfo=timezone.utc)
+
+            if meeting_date > now:
+                return {
+                    "message": (
+                        "That meeting hasn’t happened yet. "
+                        "Would you like a briefing instead?"
+                    ),
+                    "metadata": {
+                        "error": "meeting_in_future",
+                        "suggested_actions": [
+                            {
+                                "label": "Brief me on this meeting",
+                                "prefill": "Brief me on my next meeting",
+                            }
+                        ],
+                    },
+                }
+
+        if is_demo_mode():
             transcript = load_demo_transcript(calendar_event)
             zoom_meeting_id = f"demo_zoom_{calendar_event['id']}"
+
 
         else:
             zoom_meeting_id = extract_zoom_meeting_id(calendar_event)
@@ -615,6 +635,27 @@ class Orchestrator:
 
         if is_demo_mode():
             now = datetime.now(timezone.utc)
+
+            if meeting_date.tzinfo is None:
+                meeting_date = meeting_date.replace(tzinfo=timezone.utc)
+
+            if meeting_date > now:
+                return {
+                    "message": (
+                        "That meeting hasn’t happened yet. "
+                        "Would you like a briefing instead?"
+                    ),
+                    "metadata": {
+                        "error": "meeting_in_future",
+                        "suggested_actions": [
+                            {
+                                "label": "Brief me on this meeting",
+                                "prefill": "Brief me on my next meeting",
+                            }
+                        ],
+                    },
+                }
+
             demo_events = load_demo_events()
 
             for e in demo_events:
@@ -623,7 +664,7 @@ class Orchestrator:
 
                 start_dt = datetime.fromisoformat(
                     e["start"].replace("Z", "+00:00")
-                )
+                ).astimezone(timezone.utc)
 
                 event_date = start_dt.strftime("%B %d")
                 client = e.get("client_name", "the client")
@@ -644,8 +685,6 @@ class Orchestrator:
                             "prefill": f"Summarize my meeting with {client} on {event_date}",
                         }
                     )
-
-
 
         else:
             recent_meetings = self.memory_repo.get_recent_meetings_for_client(
@@ -814,7 +853,7 @@ class Orchestrator:
         else:
             memory_context = ""
             agent_notes.append(
-                "Selected the most recent meeting because no client or date was specified"
+                "Prepared a briefing for the next upcoming meeting"
             )
 
 
