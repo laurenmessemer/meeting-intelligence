@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from app.config import Config
 import logging
 logger = logging.getLogger(__name__)
+from app.runtime.mode import is_demo_mode
+
 
 
 class HubSpotIntegrationError(Exception):
@@ -46,6 +48,10 @@ def get_company_by_name(company_name: str):
     Find a HubSpot company by name (best-effort).
     Returns company dict or None.
     """
+
+    if is_demo_mode():
+        return None
+
     payload = {
         "filterGroups": [
             {
@@ -72,6 +78,10 @@ def get_or_create_company_id(company_name: str) -> str:
     Resolve a HubSpot company ID by name.
     Creates the company if it does not exist.
     """
+
+    if is_demo_mode():
+        return "MTCA"
+
     company = get_company_by_name(company_name)
     if company:
         return company["id"]
@@ -124,6 +134,10 @@ def create_task(
     Returns:
         HubSpot task ID or None if creation failed
     """
+
+    if is_demo_mode():
+        return "DEMO_TASK_ID"
+
     if not Config.HUBSPOT_API_KEY:
         logger.info("HubSpot disabled: HUBSPOT_API_KEY not configured")
         return None

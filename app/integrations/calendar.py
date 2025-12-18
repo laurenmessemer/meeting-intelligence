@@ -8,6 +8,9 @@ from typing import List, Dict, Any, Optional
 import os
 from app.config import Config
 from dateutil import parser as date_parser
+from app.runtime.mode import is_demo_mode
+from app.demo.fixtures import demo_calendar_event_for
+
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
@@ -146,6 +149,9 @@ def get_recent_meetings(days_back: int = 30) -> List[Dict[str, Any]]:
     ]
 
 def get_most_recent_meeting(days_back: int = 30) -> Optional[Dict[str, Any]]:
+    if is_demo_mode():
+        return demo_calendar_event_for(client_name="MTCA")
+
     meetings = get_recent_meetings(days_back)
     if not meetings:
         return None
@@ -189,6 +195,12 @@ def search_meetings_by_client(client_name: str, days_back: int = 90) -> List[Dic
 
 def get_most_recent_meeting_by_client(client_name: str) -> Optional[Dict[str, Any]]:
     """Get the most recent meeting for a client."""
+
+    if is_demo_mode():
+        return demo_calendar_event_for(client_name="MTCA")
+
+
+
     print("=" * 80)
     print("DIAGNOSTIC: get_most_recent_meeting_by_client()")
     print("=" * 80)
@@ -240,6 +252,12 @@ def get_meeting_by_client_and_date(
     Find a meeting for a client near a specific date.
     Searches +/- days_buffer around target_date.
     """
+
+    if is_demo_mode():
+        return demo_calendar_event_for(client_name=MTCA, target_date=2025-12-12)
+
+
+
     print("=" * 80)
     print("DIAGNOSTIC: get_meeting_by_client_and_date()")
     print("=" * 80)
@@ -400,6 +418,11 @@ def get_next_upcoming_meeting_from_calendar(
     Returns the next upcoming calendar meeting.
     If client_name is provided, filters to that client.
     """
+
+    if is_demo_mode():
+        return demo_calendar_event_for(client_name="MTCA")
+
+
 
     print("=" * 80)
     print("DIAGNOSTIC: get_next_upcoming_meeting_from_calendar()")

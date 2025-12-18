@@ -6,6 +6,8 @@ from app.db.session import SessionLocal
 from app.agent.orchestrator import Orchestrator
 from app.memory.repo import MemoryRepo
 from typing import Optional
+from app.runtime.mode import is_demo_mode
+from datetime import datetime
 
 router = APIRouter()
 
@@ -49,6 +51,22 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     
     # Create orchestrator with memory repo
     memory_repo = MemoryRepo(db)
+
+
+    # If in demo mode, create a demo meeting
+    if is_demo_mode():
+        existing_meeting = memory_repo.get_most_recent_meeting()
+        if not existing_meeting:
+            memory_repo.create_meeting(
+                MeetingCreate(
+                    client_name="Good Health",
+                    meeting_date=datetime.utcnow(),
+                    calendar_event_id="demo_event_001",
+                    zoom_meeting_id="12345678901",
+                    transcript=None,
+                )
+            )
+
     orchestrator = Orchestrator(memory_repo)
     
     # Process message

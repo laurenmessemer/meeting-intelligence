@@ -7,6 +7,8 @@ import requests
 import base64
 from datetime import datetime, timedelta
 from urllib.parse import quote
+from app.runtime.mode import is_demo_mode
+from app.demo.fixtures import demo_zoom_transcript
 
 
 class ZoomClient:
@@ -188,6 +190,10 @@ def fetch_zoom_transcript(
     zoom_meeting_id: str,
     expected_date: Optional[datetime] = None
 ) -> Optional[str]:
+
+    if is_demo_mode():
+        return demo_zoom_transcript()
+
     uuid = resolve_meeting_uuid(zoom_meeting_id, expected_date)
     if not uuid:
         return None

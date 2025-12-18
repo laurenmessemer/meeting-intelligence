@@ -3,6 +3,7 @@ import json
 import logging
 
 from app.llm.client import chat as gemini_chat
+from app.runtime.mode import is_demo_mode
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,11 @@ def resolve_client_name(
     Returns:
         Canonical client_name or None
     """
+
+    if is_demo_mode():
+    # If no explicit client and no meeting memory, default safely
+        if not explicit_client and not (meeting and meeting.client_name):
+            return "Good Health"
 
     # -------------------------------------------------
     # 1) Existing meeting always wins

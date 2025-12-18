@@ -26,6 +26,9 @@ from app.tools.followup import generate_followup_email
 from app.tools.meeting_brief import generate_meeting_brief
 from app.agent.client_resolution import resolve_client_name
 
+from app.runtime.mode import is_demo_mode
+from app.demo.fixtures import demo_zoom_transcript
+
 
 from app.integrations.hubspot import (
     HubSpotIntegrationError,
@@ -257,6 +260,9 @@ class Orchestrator:
         # Load existing meeting early (if it exists)
         # -------------------------------------------------
 
+        if is_demo_mode():
+            client_name = "MTCA"
+
         existing_meeting = self.memory_repo.get_meeting_by_calendar_id(
             calendar_event["id"]
         )
@@ -297,24 +303,24 @@ class Orchestrator:
             )
 
         # 4) LLM resolver only if still unresolved
-        llm_meta = None
-        if not client_name:
-            known_clients = self.memory_repo.get_distinct_client_names()
+        # llm_meta = None
+        # if not client_name:
+        #     known_clients = self.memory_repo.get_distinct_client_names()
 
-            # IMPORTANT: you must wire in your actual LLM call here
-            # Replace `your_llm_chat_fn` with your existing LLM chat callable.
-            llm_result = llm_resolve_client_name(
-                calendar_summary=calendar_event.get("summary", ""),
-                attendees=calendar_event.get("attendees", []),
-                known_clients=known_clients,
-                llm_chat_fn=your_llm_chat_fn,
-            )
+        #     # IMPORTANT: you must wire in your actual LLM call here
+        #     # Replace `your_llm_chat_fn` with your existing LLM chat callable.
+        #     llm_result = llm_resolve_client_name(
+        #         calendar_summary=calendar_event.get("summary", ""),
+        #         attendees=calendar_event.get("attendees", []),
+        #         known_clients=known_clients,
+        #         llm_chat_fn=your_llm_chat_fn,
+        #     )
 
-            llm_meta = llm_result
+            # llm_meta = llm_result
 
-            # Gate on confidence
-            if llm_result.get("proposed_client") and llm_result.get("confidence", 0.0) >= 0.85:
-                client_name = llm_result["proposed_client"]
+            # # Gate on confidence
+            # if llm_result.get("proposed_client") and llm_result.get("confidence", 0.0) >= 0.85:
+            #     client_name = llm_result["proposed_client"]
 
         # 5) If still not resolved, ask user
         if not client_name:
@@ -326,7 +332,7 @@ class Orchestrator:
                 "metadata": {
                     "error": "client_not_resolved",
                     "calendar_summary": calendar_event.get("summary"),
-                    "llm_client_resolution": llm_meta,
+                    "llm_client_resolution": None,
                 },
             }
 
@@ -346,12 +352,16 @@ class Orchestrator:
         except Exception:
             meeting_date = datetime.utcnow()
 
-        zoom_meeting_id = extract_zoom_meeting_id(calendar_event)
-        transcript = (
-            fetch_zoom_transcript(zoom_meeting_id, expected_date=meeting_date)
-            if zoom_meeting_id
-            else None
-        )
+        if is_demo_mode():
+            transcript = demo_zoom_transcript()
+            zoom_meeting_id = "demo_zoom_001"
+        else:
+            zoom_meeting_id = extract_zoom_meeting_id(calendar_event)
+            transcript = (
+                fetch_zoom_transcript(zoom_meeting_id, expected_date=meeting_date)
+                if zoom_meeting_id
+                else None
+            )
 
         if not existing_meeting:
 
@@ -404,7 +414,7 @@ class Orchestrator:
             transcript=transcript or meeting.transcript,
             meeting_metadata={
                 "date": meeting.meeting_date.isoformat(),
-                "attendees": [],
+                "attendees": calendar_event.get("attendees", []),
                 "client_name": client_name,
             },
             memory_context=memory_context,
@@ -441,6 +451,7 @@ class Orchestrator:
         response_message = f"""**Meeting Summary**
         **Client:** {client_name}
         **Date:** {meeting_date_str}
+        **Attendees:** {chr(10).join(f"{attendee}" for attendee in calendar_event.get('attendees', []))}
 
         {summary_result['summary']}
 
