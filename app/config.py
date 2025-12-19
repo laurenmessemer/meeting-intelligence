@@ -16,7 +16,14 @@ class Config:
     DEMO_BASIC_AUTH_PASSWORD = os.getenv("DEMO_BASIC_AUTH_PASSWORD", "")
 
     # Database
-    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/meeting_intelligence")
+    # DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/meeting_intelligence")
+    _raw_db_url = os.getenv("DATABASE_URL", "")
+    DATABASE_URL = (
+        _raw_db_url.replace("postgres://", "postgresql://", 1)
+        if _raw_db_url
+        else "postgresql://user:password@localhost/meeting_intelligence"
+    )
+
     
     # LLM
     # New variables (primary)
@@ -46,7 +53,7 @@ class Config:
     HUBSPOT_PORTAL_ID = os.getenv("HUBSPOT_PORTAL_ID", "")
     
     # Zoom (Server-to-Server OAuth)
-    # New variables (primary)
+    # New variables (primary)   
     ZOOM_ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID", "")
     ZOOM_CLIENT_ID = os.getenv("ZOOM_CLIENT_ID", "")
     ZOOM_CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET", "")

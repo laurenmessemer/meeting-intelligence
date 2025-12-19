@@ -8,6 +8,8 @@ from app.memory.repo import MemoryRepo
 from typing import Optional
 from app.runtime.mode import is_demo_mode
 from datetime import datetime
+from app.memory.schemas import MeetingCreate
+
 
 router = APIRouter()
 
