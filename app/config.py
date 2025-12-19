@@ -12,6 +12,9 @@ class Config:
     # App mode - defaults to demo so a reviewer can run without credentials
     APP_MODE = (os.getenv("APP_MODE") or "demo").strip().lower()
 
+    # Demo auth (hosted demo only)
+    DEMO_BASIC_AUTH_PASSWORD = os.getenv("DEMO_BASIC_AUTH_PASSWORD", "")
+
     # Database
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/meeting_intelligence")
     

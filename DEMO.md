@@ -156,7 +156,7 @@ For reviewers evaluating the application, follow this sequence:
 
 5. **Test date-specific queries** (if supported in demo fixtures):
    ```
-   Summarize my meeting with MTCA on 12/5
+   Summarize my meeting with MTCA on 12/12
    ```
    Verify date parsing and meeting retrieval work correctly.
 
