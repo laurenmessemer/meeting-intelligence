@@ -17,12 +17,17 @@ class Config:
 
     # Database
     # DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/meeting_intelligence")
-    _raw_db_url = os.getenv("DATABASE_URL", "")
-    DATABASE_URL = (
-        _raw_db_url.replace("postgres://", "postgresql://", 1)
-        if _raw_db_url
-        else "postgresql://user:password@localhost/meeting_intelligence"
-    )
+    _raw_db_url = os.getenv("DATABASE_URL", "").strip()
+
+    if _raw_db_url:
+        # Preserve existing behavior (including Heroku / Docker / Prod)
+        DATABASE_URL = _raw_db_url.replace("postgres://", "postgresql://", 1)
+    else:
+        # Fallback ONLY for demo mode
+        if (os.getenv("APP_MODE") or "demo").strip().lower() == "demo":
+            DATABASE_URL = "sqlite:///./demo.db"
+        else:
+            DATABASE_URL = "postgresql://user:password@localhost/meeting_intelligence"
 
     
     # LLM

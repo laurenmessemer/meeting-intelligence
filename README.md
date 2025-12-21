@@ -211,8 +211,6 @@ Every step is explicit, logged, and traceable.
 ## Alignment with Guidelines
 * **Use Free / Low-Cost Tools**
     * Supports free-tier LLM usage
-    * Demo mode requires zero credentials
-    * No unnecessary API calls
 * **Make It Easy**
     * Demo mode runs without setup complexity
     * Clear separation between demo and production environments
@@ -268,3 +266,12 @@ The system is intentionally designed to be understandable, auditable, and evolva
 
 [![Meeting Intelligence Agent Demo](https://img.youtube.com/vi/3rSsK8P8mQ8/0.jpg)](https://youtu.be/3rSsK8P8mQ8)
 *Click the image above to watch the production environment demonstration.*
+
+## Interactive Demo
+
+A live, interactive demo of the Meeting Intelligence Agent is available here:
+
+**👉 https://meeting-intelligence-demo-d78c338946a3.herokuapp.com/**
+
+This demo runs in **Demo Mode** and requires no external credentials.  
+It mirrors the full production orchestration flow using fixture-based data, allowing you to interact with the agent exactly as a reviewer or evaluator would.

@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.runtime.mode import get_app_mode
 from app.middleware.demo_auth import DemoBasicAuthMiddleware
 from init_db import init_db
+import os
 
 
 app = FastAPI(title="Meeting Intelligence Agent", version="1.0.0")
