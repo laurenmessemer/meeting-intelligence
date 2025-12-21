@@ -15,7 +15,9 @@ You can clone the repo and run the agent locally in minutes — no production se
 
 ### Requirements
 
-• Python 3.11+• macOS or Linux• Gemini LLM API key (free tier is sufficient)
+• Python 3.11+
+• macOS or Linux
+• Gemini LLM API key (free tier is sufficient)
 
 ### Setup
 
