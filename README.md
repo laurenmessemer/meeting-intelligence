@@ -15,9 +15,9 @@ You can clone the repo and run the agent locally in minutes — no production se
 
 ### Requirements
 
-• Python 3.11+
-• macOS or Linux
-• Gemini LLM API key (free tier is sufficient)
+* Python 3.11+
+* macOS or Linux
+* Gemini LLM API key (free tier is sufficient)
 
 ### Setup
 
@@ -43,10 +43,10 @@ The agent will be available at:
 
 ### What You Can Do in Demo Mode
 
-• Chat with the agent via the web UI
-• Summarize past meetings• Generate follow-up emails
-• Prepare upcoming meeting briefs
-• Observe full orchestration, memory usage, and workflow behavior
+* Chat with the agent via the web UI
+* Summarize past meetings• Generate follow-up emails
+* Prepare upcoming meeting briefs
+* Observe full orchestration, memory usage, and workflow behavior
 
 Demo mode mirrors **production orchestration exactly**, using fixture-based data instead of live integrations.
 
