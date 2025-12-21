@@ -7,6 +7,47 @@ This system is intentionally designed as a coordination-first agent, not a thin 
 
 The application supports two environments—a fully self-contained demo mode and a production mode with live integrations—while preserving identical orchestration logic across both.
 
+## Quick Start — Interactive Demo
+
+This project includes a fully self-contained **demo mode** designed for fast evaluation.
+
+You can clone the repo and run the agent locally in minutes — no production services required.
+
+### Requirements
+
+• Python 3.11+• macOS or Linux• Gemini LLM API key (free tier is sufficient)
+
+### Setup
+
+From the project root:
+
+make setup-demo
+
+This creates a local virtual environment and installs all dependencies.No production services or credentials are required.
+
+### Run the Demo
+
+Set your LLM API key:
+
+export LLM\_API\_KEY=your\_gemini\_api\_key\_here
+
+Then start the app:
+
+make run-demo
+
+The agent will be available at:
+
+[http://localhost:8000](http://localhost:8000)
+
+### What You Can Do in Demo Mode
+
+• Chat with the agent via the web UI
+• Summarize past meetings• Generate follow-up emails
+• Prepare upcoming meeting briefs
+• Observe full orchestration, memory usage, and workflow behavior
+
+Demo mode mirrors **production orchestration exactly**, using fixture-based data instead of live integrations.
+
 ## What Problem This Solves
 Meetings generate large volumes of unstructured information across calendars, transcripts, and follow-ups. This application transforms that raw data into:
 
