@@ -34,7 +34,7 @@ class Config:
     # New variables (primary)
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # Default to gemini for backward compatibility
     LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     # Backward compatibility: fallback to old GEMINI_API_KEY if LLM_API_KEY not set
     _GEMINI_API_KEY_LEGACY = os.getenv("GEMINI_API_KEY", "")
