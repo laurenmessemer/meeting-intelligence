@@ -44,7 +44,8 @@ The agent will be available at:
 ### What You Can Do in Demo Mode
 
 * Chat with the agent via the web UI
-* Summarize past meetings• Generate follow-up emails
+* Summarize past meetings
+* Generate follow-up emails
 * Prepare upcoming meeting briefs
 * Observe full orchestration, memory usage, and workflow behavior
 
@@ -75,19 +76,19 @@ It is not a “thinking model with a large context window.” Intelligence emerg
 ## High-Level Architecture
 At a system level, the application is composed of seven distinct layers:
 
-UI / API
+* UI / API
    ↓
-Intent Recognition
+* Intent Recognition
    ↓
-Orchestrator (Control Flow)
+* Orchestrator (Control Flow)
    ↓
-Workflow Execution
+* Workflow Execution
    ↓
-LLM-Powered Tools
+* LLM-Powered Tools
    ↓
-Memory & Persistence
+* Memory & Persistence
    ↓
-External Integrations
+* External Integrations
 
 Each layer has a single responsibility and does not leak concerns into adjacent layers.
 
