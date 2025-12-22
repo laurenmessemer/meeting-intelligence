@@ -1,18 +1,16 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
-.Python
+
+# Virtual environments
 venv/
 env/
-ENV/
-.venv
+.venv/
 
 # Environment and secrets
 .env
 .env.*
-*.env
 client_secret.json
 token.json
 
@@ -27,16 +25,6 @@ token.json
 .git/
 .gitignore
 
-# Testing and diagnostics
-test/
-*.md
-!README.md
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
 # Logs
 *.log
 
@@ -49,6 +37,7 @@ Thumbs.db
 dist/
 build/
 
-# Alembic (migrations are included, but ignore compiled versions)
-*.pyc
-
+# Database files
+*.db
+*.sqlite
+*.sqlite3

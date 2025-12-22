@@ -94,8 +94,8 @@ setup-prod:
 	@$(PIP) install --upgrade pip
 	@$(PIP) install -r requirements.txt
 	@echo ""
-	@echo "⚠️ Production setup requires an external PostgreSQL database."
-	@echo "Ensure DATABASE_URL and LLM_API_KEY are set before continuing."
+	@echo "⚠️ Full production mode requires ALL external integrations."
+	@echo "Ensure your .env is fully populated before running production commands."
 	@echo ""
 
 # ------------------------------------------------------------
@@ -103,18 +103,23 @@ setup-prod:
 # ------------------------------------------------------------
 check-prod:
 	@if [ "$$APP_MODE" != "prod" ]; then \
-		echo "❌ APP_MODE must be set to 'prod' for production."; \
+		echo "❌ APP_MODE must be set to 'prod'."; \
 		exit 1; \
 	fi
-	@if [ -z "$$DATABASE_URL" ]; then \
-		echo "❌ DATABASE_URL is not set."; \
-		exit 1; \
-	fi
-	@if [ -z "$$LLM_API_KEY" ]; then \
-		echo "❌ LLM_API_KEY is not set."; \
-		exit 1; \
-	fi
-	@echo "✅ Production environment variables validated."
+	@if [ -z "$$DATABASE_URL" ]; then echo "❌ DATABASE_URL is not set."; exit 1; fi
+	@if [ -z "$$LLM_PROVIDER" ]; then echo "❌ LLM_PROVIDER is not set."; exit 1; fi
+	@if [ -z "$$LLM_API_KEY" ]; then echo "❌ LLM_API_KEY is not set."; exit 1; fi
+	@if [ -z "$$GEMINI_MODEL" ]; then echo "❌ GEMINI_MODEL is not set."; exit 1; fi
+	@if [ -z "$$GOOGLE_CLIENT_ID" ]; then echo "❌ GOOGLE_CLIENT_ID is not set."; exit 1; fi
+	@if [ -z "$$GOOGLE_CLIENT_SECRET_FILE" ]; then echo "❌ GOOGLE_CLIENT_SECRET_FILE is not set."; exit 1; fi
+	@if [ -z "$$GOOGLE_TOKEN_FILE" ]; then echo "❌ GOOGLE_TOKEN_FILE is not set."; exit 1; fi
+	@if [ -z "$$GOOGLE_SCOPES" ]; then echo "❌ GOOGLE_SCOPES is not set."; exit 1; fi
+	@if [ -z "$$GOOGLE_CALENDAR_ID" ]; then echo "❌ GOOGLE_CALENDAR_ID is not set."; exit 1; fi
+	@if [ -z "$$HUBSPOT_API_KEY" ]; then echo "❌ HUBSPOT_API_KEY is not set."; exit 1; fi
+	@if [ -z "$$ZOOM_ACCOUNT_ID" ]; then echo "❌ ZOOM_ACCOUNT_ID is not set."; exit 1; fi
+	@if [ -z "$$ZOOM_CLIENT_ID" ]; then echo "❌ ZOOM_CLIENT_ID is not set."; exit 1; fi
+	@if [ -z "$$ZOOM_CLIENT_SECRET" ]; then echo "❌ ZOOM_CLIENT_SECRET is not set."; exit 1; fi
+	@echo "✅ Full production environment validated."
 
 # ------------------------------------------------------------
 # Migrate (Production)
